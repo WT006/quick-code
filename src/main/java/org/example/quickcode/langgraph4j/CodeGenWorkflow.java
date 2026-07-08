@@ -1,0 +1,147 @@
+package org.example.quickcode.langgraph4j;
+
+import jakarta.annotation.PostConstruct;
+import lombok.extern.slf4j.Slf4j;
+import org.bsc.langgraph4j.CompiledGraph;
+import org.bsc.langgraph4j.GraphRepresentation;
+import org.bsc.langgraph4j.GraphStateException;
+import org.bsc.langgraph4j.NodeOutput;
+import org.bsc.langgraph4j.prebuilt.MessagesState;
+import org.bsc.langgraph4j.prebuilt.MessagesStateGraph;
+import org.example.quickcode.exception.BusinessException;
+import org.example.quickcode.exception.ErrorCode;
+import org.example.quickcode.core.LangChain4jStreamUtils;
+import org.example.quickcode.langgraph4j.WorkflowExecutionHolder;
+import org.example.quickcode.langgraph4j.model.QualityResult;
+import org.example.quickcode.langgraph4j.node.*;
+import org.example.quickcode.langgraph4j.state.WorkflowContext;
+import org.example.quickcode.model.enums.CodeGenTypeEnum;
+import org.springframework.stereotype.Service;
+import reactor.core.publisher.Flux;
+
+import java.util.Map;
+
+import static org.bsc.langgraph4j.StateGraph.END;
+import static org.bsc.langgraph4j.StateGraph.START;
+import static org.bsc.langgraph4j.action.AsyncEdgeAction.edge_async;
+
+@Slf4j
+@Service
+public class CodeGenWorkflow {
+
+    private static final int MAX_QUALITY_RETRIES = 2;
+
+    private CompiledGraph<MessagesState<String>> compiledWorkflow;
+
+    @PostConstruct
+    public void init() {
+        compiledWorkflow = createWorkflow();
+    }
+
+    /**
+     * 集成到主业务的流式工作流入口
+     */
+    public Flux<String> executeForApp(Long appId, String message, CodeGenTypeEnum codeGenType) {
+        return Flux.create(sink -> Thread.startVirtualThread(() -> {
+            try {
+                WorkflowExecutionHolder.set(appId, codeGenType, sink);
+
+                WorkflowContext initialContext = WorkflowContext.builder()
+                        .appId(appId)
+                        .originalPrompt(message)
+                        .generationType(codeGenType)
+                        .currentStep("初始化")
+                        .build();
+
+                log.info("开始执行代码生成工作流, appId={}, type={}", appId, codeGenType.getValue());
+                GraphRepresentation graph = compiledWorkflow.getGraph(GraphRepresentation.Type.MERMAID);
+                log.debug("工作流图:\n{}", graph.content());
+
+                for (NodeOutput<MessagesState<String>> step : compiledWorkflow.stream(
+                        Map.of(WorkflowContext.WORKFLOW_CONTEXT_KEY, initialContext))) {
+                    WorkflowContext currentContext = WorkflowContext.getContext(step.state());
+                    if (currentContext != null) {
+                        log.info("工作流步骤完成: {}", currentContext.getCurrentStep());
+                    }
+                }
+
+                log.info("代码生成工作流执行完成, appId={}", appId);
+                WorkflowExecutionHolder.emitChunk(appId, "\n\n✅ 代码生成已完成，请查看右侧预览。\n");
+                sink.complete();
+            } catch (Exception e) {
+                if (LangChain4jStreamUtils.isBenignNullResponseError(e)) {
+                    log.warn("工作流收尾异常已忽略, appId={}: {}", appId, e.getMessage());
+                    WorkflowExecutionHolder.emitChunk(appId, "\n\n✅ 代码生成已完成，请查看右侧预览。\n");
+                    sink.complete();
+                } else {
+                    log.error("工作流执行失败, appId={}: {}", appId, e.getMessage(), e);
+                    WorkflowExecutionHolder.emitChunk(appId, "\n\n代码生成失败：" + resolveErrorMessage(e) + "\n");
+                    sink.complete();
+                }
+            } finally {
+                WorkflowExecutionHolder.clear(appId);
+            }
+        }));
+    }
+
+    private CompiledGraph<MessagesState<String>> createWorkflow() {
+        try {
+            return new MessagesStateGraph<String>()
+                    .addNode("image_collector", ImageCollectorNode.create())
+                    .addNode("prompt_enhancer", PromptEnhancerNode.create())
+                    .addNode("router", RouterNode.create())
+                    .addNode("code_generator", CodeGeneratorNode.create())
+                    .addNode("code_quality_check", CodeQualityCheckNode.create())
+                    .addNode("project_builder", ProjectBuilderNode.create())
+                    .addEdge(START, "image_collector")
+                    .addEdge("image_collector", "prompt_enhancer")
+                    .addEdge("prompt_enhancer", "router")
+                    .addEdge("router", "code_generator")
+                    .addEdge("code_generator", "code_quality_check")
+                    .addConditionalEdges("code_quality_check",
+                            edge_async(this::routeAfterQualityCheck),
+                            Map.of(
+                                    "build", "project_builder",
+                                    "skip_build", END,
+                                    "fail", "code_generator"
+                            ))
+                    .addEdge("project_builder", END)
+                    .compile();
+        } catch (GraphStateException e) {
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "工作流创建失败");
+        }
+    }
+
+    private String routeAfterQualityCheck(MessagesState<String> state) {
+        WorkflowContext context = WorkflowContext.getContext(state);
+        QualityResult qualityResult = context.getQualityResult();
+        if (qualityResult == null || !qualityResult.getIsValid()) {
+            if (context.getQualityCheckRetryCount() >= MAX_QUALITY_RETRIES) {
+                log.warn("代码质检重试次数已达上限({})，继续后续流程", MAX_QUALITY_RETRIES);
+                return routeBuildOrSkip(state);
+            }
+            log.warn("代码质检失败，准备第 {} 次重新生成", context.getQualityCheckRetryCount() + 1);
+            return "fail";
+        }
+        log.info("代码质检通过，继续后续流程");
+        return routeBuildOrSkip(state);
+    }
+
+    private String routeBuildOrSkip(MessagesState<String> state) {
+        WorkflowContext context = WorkflowContext.getContext(state);
+        CodeGenTypeEnum generationType = context.getGenerationType();
+        if (generationType == CodeGenTypeEnum.HTML || generationType == CodeGenTypeEnum.MULTI_FILE) {
+            return "skip_build";
+        }
+        return "build";
+    }
+
+    private String resolveErrorMessage(Exception e) {
+        Throwable cause = e;
+        while (cause.getCause() != null) {
+            cause = cause.getCause();
+        }
+        String message = cause.getMessage();
+        return message != null ? message : e.getMessage();
+    }
+}
