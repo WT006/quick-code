@@ -21,6 +21,7 @@ import org.example.quickcode.model.dto.app.*;
 import org.example.quickcode.model.entity.App;
 import org.example.quickcode.model.entity.User;
 import org.example.quickcode.model.vo.AppVO;
+import org.example.quickcode.core.stream.StreamEventEncoder;
 import org.example.quickcode.ratelimit.annotation.RateLimit;
 import org.example.quickcode.ratelimit.enums.RateLimitType;
 import org.example.quickcode.service.AppService;
@@ -67,24 +68,26 @@ public class   AppController {
     @RateLimit(limitType = RateLimitType.USER, rate = 5, rateInterval = 60, message = "AI 对话请求过于频繁，请稍后再试")
     public Flux<ServerSentEvent<String>> chatToGenCode(@RequestParam Long appId,
                                                        @RequestParam String message,
-                                                       HttpServletRequest request) {
+                                                       HttpServletRequest request,
+                                                       HttpServletResponse response) {
         // 参数校验
         ThrowUtils.throwIf(appId == null || appId <= 0, ErrorCode.PARAMS_ERROR, "应用ID无效");
         ThrowUtils.throwIf(StrUtil.isBlank(message), ErrorCode.PARAMS_ERROR, "用户消息不能为空");
+        // 禁用代理/容器缓冲，确保 SSE 增量事件及时到达前端
+        response.setCharacterEncoding("UTF-8");
+        response.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+        response.setHeader("Pragma", "no-cache");
+        response.setHeader("Connection", "keep-alive");
+        response.setHeader("X-Accel-Buffering", "no");
         // 获取当前登录用户
         User loginUser = userService.getLoginUser(request);
         // 调用服务生成代码（流式）
         Flux<String> contentFlux = appService.chatToGenCode(appId, message, loginUser);
         // 转换为 ServerSentEvent 格式
         return contentFlux
-                .map(chunk -> {
-                    // 将内容包装成JSON对象
-                    Map<String, String> wrapper = Map.of("d", chunk);
-                    String jsonData = JSONUtil.toJsonStr(wrapper);
-                    return ServerSentEvent.<String>builder()
-                            .data(jsonData)
-                            .build();
-                })
+                .map(chunk -> ServerSentEvent.<String>builder()
+                        .data(StreamEventEncoder.normalize(chunk))
+                        .build())
                 .concatWith(Mono.just(
                         // 发送结束事件
                         ServerSentEvent.<String>builder()

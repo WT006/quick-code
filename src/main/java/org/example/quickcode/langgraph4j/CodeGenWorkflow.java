@@ -18,6 +18,7 @@ import org.example.quickcode.langgraph4j.state.WorkflowContext;
 import org.example.quickcode.model.enums.CodeGenTypeEnum;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.FluxSink;
 
 import java.util.Map;
 
@@ -66,22 +67,22 @@ public class CodeGenWorkflow {
                 }
 
                 log.info("代码生成工作流执行完成, appId={}", appId);
-                WorkflowExecutionHolder.emitChunk(appId, "\n\n✅ 代码生成已完成，请查看右侧预览。\n");
+                WorkflowExecutionHolder.emitStatus(appId, "✅ 代码生成已完成，请查看右侧预览");
                 sink.complete();
             } catch (Exception e) {
                 if (LangChain4jStreamUtils.isBenignNullResponseError(e)) {
                     log.warn("工作流收尾异常已忽略, appId={}: {}", appId, e.getMessage());
-                    WorkflowExecutionHolder.emitChunk(appId, "\n\n✅ 代码生成已完成，请查看右侧预览。\n");
+                    WorkflowExecutionHolder.emitStatus(appId, "✅ 代码生成已完成，请查看右侧预览");
                     sink.complete();
                 } else {
                     log.error("工作流执行失败, appId={}: {}", appId, e.getMessage(), e);
-                    WorkflowExecutionHolder.emitChunk(appId, "\n\n代码生成失败：" + resolveErrorMessage(e) + "\n");
+                    WorkflowExecutionHolder.emitStatus(appId, "代码生成失败：" + LangChain4jStreamUtils.resolveFriendlyErrorMessage(e));
                     sink.complete();
                 }
             } finally {
                 WorkflowExecutionHolder.clear(appId);
             }
-        }));
+        }), FluxSink.OverflowStrategy.BUFFER);
     }
 
     private CompiledGraph<MessagesState<String>> createWorkflow() {
@@ -134,14 +135,5 @@ public class CodeGenWorkflow {
             return "skip_build";
         }
         return "build";
-    }
-
-    private String resolveErrorMessage(Exception e) {
-        Throwable cause = e;
-        while (cause.getCause() != null) {
-            cause = cause.getCause();
-        }
-        String message = cause.getMessage();
-        return message != null ? message : e.getMessage();
     }
 }

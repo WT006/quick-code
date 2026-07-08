@@ -1,7 +1,6 @@
 package org.example.quickcode.langgraph4j;
 
-import cn.hutool.json.JSONUtil;
-import org.example.quickcode.ai.model.message.AiResponseMessage;
+import org.example.quickcode.core.stream.StreamEventEncoder;
 import org.example.quickcode.model.enums.CodeGenTypeEnum;
 import reactor.core.publisher.FluxSink;
 
@@ -34,26 +33,39 @@ public final class WorkflowExecutionHolder {
         return appId != null && ACTIVE_STREAMS.containsKey(appId);
     }
 
-    /**
-     * 推送工作流进度等纯文本（Vue 项目会自动包装为 JSON 消息）。
-     */
+    /** 工作流阶段状态（前端单行展示，不混入正文） */
+    public static void emitStatus(Long appId, String text) {
+        emitRaw(appId, StreamEventEncoder.status(text));
+    }
+
+    /** AI 生成的正文内容（代码、方案等） */
+    public static void emitContent(Long appId, String text) {
+        if (text == null || text.isEmpty()) {
+            return;
+        }
+        emitRaw(appId, StreamEventEncoder.content(text));
+    }
+
+    /** 工具调用信息（Vue 模式写文件等） */
+    public static void emitTool(Long appId, String text) {
+        if (text == null || text.isEmpty()) {
+            return;
+        }
+        emitRaw(appId, StreamEventEncoder.tool(text));
+    }
+
+    /** 清空前端已展示的正文，避免重试时内容叠加导致卡顿 */
+    public static void emitContentReset(Long appId) {
+        emitRaw(appId, StreamEventEncoder.reset());
+    }
+
+    /** @deprecated 使用 {@link #emitStatus} */
     public static void emitChunk(Long appId, String text) {
-        if (appId == null || text == null || text.isEmpty()) {
-            return;
-        }
-        Holder holder = ACTIVE_STREAMS.get(appId);
-        if (holder == null || holder.sink() == null) {
-            return;
-        }
-        if (holder.codeGenType() == CodeGenTypeEnum.VUE_PROJECT) {
-            emitRaw(appId, JSONUtil.toJsonStr(new AiResponseMessage(text)));
-        } else {
-            emitRaw(appId, text);
-        }
+        emitStatus(appId, text);
     }
 
     /**
-     * 直接推送已格式化的流式片段（不再二次包装）。
+     * 直接推送已编码的流式事件 JSON（不再二次包装）。
      */
     public static void emitRaw(Long appId, String chunk) {
         if (appId == null || chunk == null || chunk.isEmpty()) {

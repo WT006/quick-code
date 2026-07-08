@@ -6,7 +6,7 @@ import java.util.regex.Pattern;
 
 public class HtmlCodeParser implements CodeParser<HtmlCodeResult> {
 
-    private static final Pattern HTML_CODE_PATTERN = Pattern.compile("```html\\s*\\n([\\s\\S]*?)```", Pattern.CASE_INSENSITIVE);
+    private static final Pattern HTML_CODE_PATTERN = Pattern.compile("```html\\s*\\n?([\\s\\S]*?)```", Pattern.CASE_INSENSITIVE);
 
     /**
      * 解析 HTML 单文件代码

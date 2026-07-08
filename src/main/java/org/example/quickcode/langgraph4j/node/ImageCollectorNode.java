@@ -29,7 +29,7 @@ public class ImageCollectorNode {
             WorkflowContext context = WorkflowContext.getContext(state);
             Long appId = context.getAppId();
             log.info("执行节点: 图片收集");
-            WorkflowExecutionHolder.emitChunk(appId, "正在分析需求并收集图片素材...\n");
+            WorkflowExecutionHolder.emitStatus(appId, "正在收集图片");
             String originalPrompt = context.getOriginalPrompt();
             List<ImageResource> collectedImages = new ArrayList<>();
 
@@ -69,7 +69,9 @@ public class ImageCollectorNode {
                     }
                 }
 
-                CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+                if (!futures.isEmpty()) {
+                    CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+                }
                 for (CompletableFuture<List<ImageResource>> future : futures) {
                     List<ImageResource> images = future.get();
                     if (images != null) {
@@ -81,13 +83,10 @@ public class ImageCollectorNode {
                     collectedImages = new ArrayList<>(collectedImages.subList(0, ImageCollectionConstants.MAX_TOTAL_IMAGES));
                 }
                 log.info("并发图片收集完成，共收集到 {} 张图片", collectedImages.size());
-                if (!collectedImages.isEmpty()) {
-                    WorkflowExecutionHolder.emitChunk(appId,
-                            String.format("已收集 %d 张图片素材，正在增强提示词...\n", collectedImages.size()));
-                }
             } catch (Exception e) {
                 log.error("图片收集失败: {}", e.getMessage(), e);
             }
+            WorkflowExecutionHolder.emitStatus(appId, "搜集图片已完成");
             context.setCurrentStep("图片收集");
             context.setImageList(collectedImages);
             return WorkflowContext.saveContext(context);

@@ -60,11 +60,59 @@
                 <a-avatar :src="aiAvatar" />
               </div>
               <div class="message-content">
-                <MarkdownRenderer v-if="message.content" :content="message.content" />
-                <div v-if="message.loading" class="loading-indicator">
-                  <a-spin size="small" />
-                  <span>AI 正在思考...</span>
-                </div>
+                <!-- Vue：状态 + 开头 + 步骤 + 结尾，统一时间线 -->
+                <template v-if="isVueProject">
+                  <div
+                      v-if="message.currentStatus && !message.segments?.length"
+                      class="workflow-status"
+                  >
+                    <a-spin v-if="message.loading" size="small" />
+                    <span>{{ message.currentStatus }}</span>
+                  </div>
+                  <div v-if="message.segments?.length" class="message-timeline">
+                    <template v-for="(seg, segIndex) in message.segments" :key="segIndex">
+                      <div v-if="seg.type === 'status'" class="workflow-status-item">
+                        <a-spin
+                            v-if="message.loading && segIndex === message.segments!.length - 1"
+                            size="small"
+                            class="status-spinner"
+                        />
+                        <span>{{ seg.value }}</span>
+                      </div>
+                      <div v-else-if="seg.type === 'tool'" class="tool-call-item">
+                        <MarkdownRenderer :content="seg.value" />
+                      </div>
+                      <MarkdownRenderer
+                          v-else-if="seg.value"
+                          :content="seg.value"
+                          :streaming="isGenerating && index === messages.length - 1 && message.type === 'ai' && segIndex === message.segments!.length - 1"
+                      />
+                    </template>
+                  </div>
+                </template>
+                <!-- HTML / 多文件 -->
+                <template v-else>
+                  <div v-if="message.currentStatus && !message.statuses?.length" class="workflow-status">
+                    <a-spin v-if="message.loading" size="small" />
+                    <span>{{ message.currentStatus }}</span>
+                  </div>
+                  <div v-if="message.statuses?.length" class="workflow-status-history">
+                    <div v-for="(status, statusIndex) in message.statuses" :key="statusIndex" class="workflow-status-item">
+                      <a-spin v-if="message.loading && statusIndex === message.statuses!.length - 1" size="small" class="status-spinner" />
+                      <span>{{ status }}</span>
+                    </div>
+                  </div>
+                  <div v-if="message.tools?.length" class="tool-calls-panel">
+                    <div v-for="(tool, toolIndex) in message.tools" :key="toolIndex" class="tool-call-item">
+                      <MarkdownRenderer :content="tool" />
+                    </div>
+                  </div>
+                  <MarkdownRenderer
+                      v-if="message.content"
+                      :content="message.content"
+                      :streaming="isGenerating && index === messages.length - 1 && message.type === 'ai'"
+                  />
+                </template>
               </div>
             </div>
           </div>
@@ -221,6 +269,13 @@ import {
 } from '@/api/appController'
 import { listAppChatHistory } from '@/api/chatHistoryController'
 import { CodeGenTypeEnum, formatCodeGenType } from '@/utils/codeGenTypes'
+import {
+  appendContentSegment,
+  appendStatusSegment,
+  appendToolSegment,
+  parseChatHistoryMessage,
+  type MessageSegment,
+} from '@/utils/chatMessageParser'
 import request from '@/request'
 
 import MarkdownRenderer from '@/components/MarkdownRenderer.vue'
@@ -253,6 +308,10 @@ interface Message {
   content: string
   loading?: boolean
   createTime?: string
+  currentStatus?: string
+  statuses?: string[]
+  tools?: string[]
+  segments?: MessageSegment[]
 }
 
 const messages = ref<Message[]>([])
@@ -296,7 +355,8 @@ const isAdmin = computed(() => {
   return loginUserStore.loginUser.userRole === 'admin'
 })
 
-// 应用详情相关
+const isVueProject = computed(() => appInfo.value?.codeGenType === CodeGenTypeEnum.VUE_PROJECT)
+
 const appDetailVisible = ref(false)
 
 // 显示应用详情
@@ -323,11 +383,25 @@ const loadChatHistory = async (isLoadMore = false) => {
       if (chatHistories.length > 0) {
         // 将对话历史转换为消息格式，并按时间正序排列（老消息在前）
         const historyMessages: Message[] = chatHistories
-            .map((chat) => ({
-              type: (chat.messageType === 'user' ? 'user' : 'ai') as 'user' | 'ai',
-              content: chat.message || '',
-              createTime: chat.createTime,
-            }))
+            .map((chat) => {
+              const type = (chat.messageType === 'user' ? 'user' : 'ai') as 'user' | 'ai'
+              if (type === 'user') {
+                return {
+                  type,
+                  content: chat.message || '',
+                  createTime: chat.createTime,
+                }
+              }
+              const parsed = parseChatHistoryMessage(chat.message || '')
+              return {
+                type,
+                content: parsed.content,
+                statuses: parsed.statuses,
+                tools: parsed.tools,
+                segments: parsed.segments,
+                createTime: chat.createTime,
+              }
+            })
             .reverse() // 反转数组，让老消息在前
         if (isLoadMore) {
           // 加载更多时，将历史消息添加到开头
@@ -415,6 +489,10 @@ const sendInitialMessage = async (prompt: string) => {
     type: 'ai',
     content: '',
     loading: true,
+    currentStatus: '',
+    statuses: [],
+    tools: [],
+    segments: [],
   })
 
   await nextTick()
@@ -465,6 +543,10 @@ const sendMessage = async () => {
     type: 'ai',
     content: '',
     loading: true,
+    currentStatus: '',
+    statuses: [],
+    tools: [],
+    segments: [],
   })
 
   await nextTick()
@@ -504,17 +586,57 @@ const generateCode = async (userMessage: string, aiMessageIndex: number) => {
       if (streamCompleted) return
 
       try {
-        // 解析JSON包装的数据
         const parsed = JSON.parse(event.data)
-        const content = parsed.d
+        const chunkType = parsed.t || 'content'
+        const chunkData = parsed.d
 
-        // 拼接内容
-        if (content !== undefined && content !== null) {
-          fullContent += content
-          messages.value[aiMessageIndex].content = fullContent
-          messages.value[aiMessageIndex].loading = false
-          scrollToBottom()
+        if (chunkData === undefined || chunkData === null) return
+
+        const aiMessage = messages.value[aiMessageIndex]
+
+        if (chunkType === 'status') {
+          if (!aiMessage.statuses) aiMessage.statuses = []
+          aiMessage.statuses.push(chunkData)
+          aiMessage.currentStatus = chunkData
+          if (isVueProject.value) {
+            aiMessage.segments = appendStatusSegment(aiMessage.segments, chunkData)
+          }
+          // 重试生成时清空旧代码，避免正文叠加导致页面卡顿
+          if (typeof chunkData === 'string' && chunkData.includes('重新生成')) {
+            fullContent = ''
+            aiMessage.content = ''
+            aiMessage.segments = []
+            aiMessage.tools = []
+          }
+          if (isGenerating.value) {
+            aiMessage.loading = true
+          }
+        } else if (chunkType === 'reset') {
+          fullContent = ''
+          aiMessage.content = ''
+          aiMessage.segments = []
+          aiMessage.tools = []
+          if (isGenerating.value) {
+            aiMessage.loading = true
+          }
+        } else if (chunkType === 'tool') {
+          if (isVueProject.value) {
+            aiMessage.segments = appendToolSegment(aiMessage.segments, chunkData)
+          }
+          if (!aiMessage.tools) aiMessage.tools = []
+          aiMessage.tools.push(chunkData)
+          if (isGenerating.value) {
+            aiMessage.loading = true
+          }
+        } else {
+          fullContent += chunkData
+          aiMessage.content = fullContent
+          if (isVueProject.value) {
+            aiMessage.segments = appendContentSegment(aiMessage.segments, chunkData)
+          }
+          aiMessage.loading = false
         }
+        scrollToBottom()
       } catch (error) {
         console.error('解析消息失败:', error)
         handleError(error, aiMessageIndex)
@@ -527,10 +649,18 @@ const generateCode = async (userMessage: string, aiMessageIndex: number) => {
 
       streamCompleted = true
       isGenerating.value = false
-      if (!messages.value[aiMessageIndex].content?.trim()) {
-        messages.value[aiMessageIndex].content = '代码生成已完成，请在右侧预览网站。'
+      const aiMsg = messages.value[aiMessageIndex]
+      const hasContent = isVueProject.value
+          ? (aiMsg.segments?.length ?? 0) > 0
+          : !!aiMsg.content?.trim()
+      if (!hasContent) {
+        const fallback = '代码生成已完成，请在右侧预览网站。'
+        aiMsg.content = fallback
+        if (isVueProject.value) {
+          aiMsg.segments = appendContentSegment(aiMsg.segments, fallback)
+        }
       }
-      messages.value[aiMessageIndex].loading = false
+      aiMsg.loading = false
       eventSource?.close()
 
       // 延迟更新预览，确保后端已完成处理
@@ -889,6 +1019,76 @@ onUnmounted(() => {
   align-items: center;
   gap: 8px;
   color: #666;
+}
+
+.workflow-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  margin-bottom: 8px;
+  background: #f0f5ff;
+  border: 1px solid #d6e4ff;
+  border-radius: 8px;
+  color: #1677ff;
+  font-size: 13px;
+}
+
+.workflow-status-history {
+  margin-bottom: 8px;
+}
+
+.workflow-status-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  margin-bottom: 4px;
+  background: #f0f5ff;
+  border-left: 3px solid #1677ff;
+  border-radius: 4px;
+  color: #1677ff;
+  font-size: 13px;
+}
+
+.status-spinner {
+  flex-shrink: 0;
+}
+
+.workflow-status-item:last-child {
+  margin-bottom: 0;
+}
+
+.tool-calls-panel {
+  margin-bottom: 10px;
+}
+
+.message-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.message-timeline .workflow-status-item {
+  margin-bottom: 0;
+}
+
+.message-timeline .tool-call-item {
+  margin-bottom: 0;
+}
+
+.tool-call-item {
+  padding: 8px 12px;
+  margin-bottom: 6px;
+  background: #fafafa;
+  border-left: 3px solid #52c41a;
+  border-radius: 4px;
+  font-size: 13px;
+  color: #434343;
+}
+
+.tool-call-item :deep(p) {
+  margin: 0;
 }
 
 /* 加载更多按钮 */

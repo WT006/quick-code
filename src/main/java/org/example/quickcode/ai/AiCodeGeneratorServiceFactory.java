@@ -109,7 +109,8 @@ public class AiCodeGeneratorServiceFactory {
                         ))
                         .inputGuardrails(new PromptSafetyInputGuardrail())
                         //.outputGuardrails(new RetryOutputGuardrail())  为了流式输出所以注释掉
-                        .maxSequentialToolsInvocations(20)
+                        // 每次仅执行一个工具后再请求模型，保证写文件步骤逐步流式展示
+                        .maxSequentialToolsInvocations(1)
                         .build();
             }
             case HTML, MULTI_FILE -> {

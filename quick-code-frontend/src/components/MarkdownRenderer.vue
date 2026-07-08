@@ -6,21 +6,26 @@
 import { computed } from 'vue'
 import MarkdownIt from 'markdown-it'
 import hljs from 'highlight.js'
+import { prepareCodegenMarkdown } from '@/utils/codegenMarkdown'
 
 // 引入代码高亮样式
 import 'highlight.js/styles/github.css'
 
 interface Props {
   content: string
+  /** 流式输出中：临时闭合未完成的代码围栏 */
+  streaming?: boolean
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  streaming: false,
+})
 
-// 配置 markdown-it 实例
+// 禁止渲染原始 HTML，避免 AI 输出的 HTML/CSS 被当作网页展示
 const md: MarkdownIt = new MarkdownIt({
-  html: true,
+  html: false,
   linkify: true,
-  typographer: true,
+  typographer: false,
   highlight: function (str: string, lang: string): string {
     if (lang && hljs.getLanguage(lang)) {
       try {
@@ -38,9 +43,9 @@ const md: MarkdownIt = new MarkdownIt({
   },
 })
 
-// 计算渲染后的 Markdown
 const renderedMarkdown = computed(() => {
-  return md.render(props.content)
+  const prepared = prepareCodegenMarkdown(props.content, props.streaming)
+  return md.render(prepared)
 })
 </script>
 
@@ -179,7 +184,6 @@ const renderedMarkdown = computed(() => {
   line-height: 1.4;
 }
 
-/* 特定语言的代码块样式 */
 .markdown-content :deep(.hljs-keyword) {
   color: #d73a49;
   font-weight: 600;

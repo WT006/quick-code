@@ -34,15 +34,21 @@ public class CodeGeneratorNode {
             log.info("开始生成代码，appId={}, 类型: {} ({})", appId, generationType.getValue(), generationType.getText());
 
             if (context.getQualityCheckRetryCount() > 0) {
-                WorkflowExecutionHolder.emitChunk(appId,
-                        String.format("代码质检未通过，正在第 %d 次重新生成...\n", context.getQualityCheckRetryCount()));
-            } else {
-                WorkflowExecutionHolder.emitChunk(appId, "正在生成代码...\n");
+                WorkflowExecutionHolder.emitStatus(appId,
+                        String.format("代码审查未通过，正在第 %d 次重新生成...", context.getQualityCheckRetryCount()));
+                WorkflowExecutionHolder.emitContentReset(appId);
+            } else if (generationType == CodeGenTypeEnum.VUE_PROJECT) {
+                WorkflowExecutionHolder.emitStatus(appId, "正在生成 Vue 项目代码");
             }
 
-            Flux<String> codeStream = codeGeneratorFacade.generateAndSaveCodeStream(userMessage, generationType, appId);
+            boolean freshSession = generationType == CodeGenTypeEnum.VUE_PROJECT
+                    || context.getQualityCheckRetryCount() > 0;
+            Flux<String> codeStream = codeGeneratorFacade.generateAndSaveCodeStream(
+                    userMessage, generationType, appId, freshSession);
             try {
-                codeStream.blockLast(Duration.ofMinutes(20));
+                codeStream
+                        .subscribeOn(reactor.core.scheduler.Schedulers.boundedElastic())
+                        .blockLast(Duration.ofMinutes(20));
             } catch (Exception e) {
                 if (LangChain4jStreamUtils.isBenignNullResponseError(e)) {
                     log.warn("代码生成流收尾异常已忽略: {}", e.getMessage());

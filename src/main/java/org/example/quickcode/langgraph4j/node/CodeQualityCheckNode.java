@@ -28,7 +28,7 @@ public class CodeQualityCheckNode {
             WorkflowContext context = WorkflowContext.getContext(state);
             Long appId = context.getAppId();
             log.info("执行节点: 代码质量检查");
-            WorkflowExecutionHolder.emitChunk(appId, "正在检查代码质量...\n");
+            WorkflowExecutionHolder.emitStatus(appId, "正在进行代码审查");
             String generatedCodeDir = context.getGeneratedCodeDir();
             QualityResult qualityResult;
             try {
@@ -59,6 +59,11 @@ public class CodeQualityCheckNode {
                 context.setQualityCheckRetryCount(context.getQualityCheckRetryCount() + 1);
             }
             context.setQualityResult(qualityResult);
+            if (qualityResult.getIsValid()) {
+                WorkflowExecutionHolder.emitStatus(appId, "代码审查结束");
+            } else {
+                WorkflowExecutionHolder.emitStatus(appId, "代码审查未通过，准备重新生成");
+            }
             return WorkflowContext.saveContext(context);
         });
     }

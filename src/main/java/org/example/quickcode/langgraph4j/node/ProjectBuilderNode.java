@@ -23,7 +23,7 @@ public class ProjectBuilderNode {
             WorkflowContext context = WorkflowContext.getContext(state);
             Long appId = context.getAppId();
             log.info("执行节点: 项目构建");
-            WorkflowExecutionHolder.emitChunk(appId, "正在构建项目...\n");
+            WorkflowExecutionHolder.emitStatus(appId, "正在构建项目...");
 
             // 获取必要的参数
             String generatedCodeDir = context.getGeneratedCodeDir();
@@ -55,7 +55,7 @@ public class ProjectBuilderNode {
             context.setCurrentStep("项目构建");
             context.setBuildResultDir(buildResultDir);
             log.info("项目构建节点完成，最终目录: {}", buildResultDir);
-            WorkflowExecutionHolder.emitChunk(appId, "项目构建完成。\n");
+            WorkflowExecutionHolder.emitStatus(appId, "项目构建完成");
             return WorkflowContext.saveContext(context);
         });
     }
