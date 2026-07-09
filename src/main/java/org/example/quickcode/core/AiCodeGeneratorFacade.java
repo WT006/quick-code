@@ -93,6 +93,15 @@ public class AiCodeGeneratorFacade {
         return generateAndSaveCodeStream(userMessage, codeGenTypeEnum, appId, false);
     }
 
+    /**
+     * 统一入口：根据类型生成并保存代码(流式输出)
+     * @param userMessage
+     * @param codeGenTypeEnum
+     * @param appId
+     * @param freshSession
+     * @return
+     */
+
     public Flux<String> generateAndSaveCodeStream(String userMessage, CodeGenTypeEnum codeGenTypeEnum, Long appId, boolean freshSession) {
         if (codeGenTypeEnum == null) {
             throw new BusinessException(ErrorCode.SYSTEM_ERROR, "生成类型为空");

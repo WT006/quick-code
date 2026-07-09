@@ -4,6 +4,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.bsc.langgraph4j.action.AsyncNodeAction;
 import org.bsc.langgraph4j.prebuilt.MessagesState;
 import org.example.quickcode.ai.AiCodeGenTypeRoutingService;
+import org.example.quickcode.ai.AiCodeGenTypeRoutingServiceFactory;
 import org.example.quickcode.utils.SpringContextUtil;
 import org.example.quickcode.langgraph4j.state.WorkflowContext;
 import org.example.quickcode.model.enums.CodeGenTypeEnum;
@@ -23,7 +24,8 @@ public class RouterNode {
                 log.info("使用应用预设的代码生成类型: {} ({})", generationType.getValue(), generationType.getText());
             } else {
                 try {
-                    AiCodeGenTypeRoutingService routingService = SpringContextUtil.getBean(AiCodeGenTypeRoutingService.class);
+                    AiCodeGenTypeRoutingServiceFactory factory = SpringContextUtil.getBean(AiCodeGenTypeRoutingServiceFactory.class);
+                    AiCodeGenTypeRoutingService routingService = factory.createAiCodeGenTypeRoutingService();
                     generationType = routingService.routeCodeGenType(context.getOriginalPrompt());
                     log.info("AI智能路由完成，选择类型: {} ({})", generationType.getValue(), generationType.getText());
                 } catch (Exception e) {

@@ -6,6 +6,7 @@ import org.bsc.langgraph4j.action.AsyncNodeAction;
 import org.bsc.langgraph4j.prebuilt.MessagesState;
 import org.example.quickcode.core.CodegenOutputPaths;
 import org.example.quickcode.langgraph4j.ai.ImageIntentClassifierService;
+import org.example.quickcode.langgraph4j.ai.ImageIntentClassifierServiceFactory;
 import org.example.quickcode.langgraph4j.model.ImageIntentResult;
 import org.example.quickcode.langgraph4j.model.enums.ImageCategoryEnum;
 import org.example.quickcode.langgraph4j.model.enums.ImageCollectionMode;
@@ -43,7 +44,8 @@ public class ImageIntentRouterNode {
 
     private static void resolveIncrementalImageMode(WorkflowContext context) {
         try {
-            ImageIntentClassifierService classifier = SpringContextUtil.getBean(ImageIntentClassifierService.class);
+            ImageIntentClassifierServiceFactory factory = SpringContextUtil.getBean(ImageIntentClassifierServiceFactory.class);
+            ImageIntentClassifierService classifier = factory.createImageIntentClassifierService();
             ImageIntentResult result = classifier.classify(context.getOriginalPrompt());
             if (result != null && result.shouldCollect() && StrUtil.isNotBlank(result.getImageQuery())) {
                 context.setImageCollectionMode(ImageCollectionMode.TARGETED);

@@ -7,6 +7,7 @@ import org.bsc.langgraph4j.prebuilt.MessagesState;
 import org.example.quickcode.langgraph4j.ImageCollectionConstants;
 import org.example.quickcode.langgraph4j.WorkflowExecutionHolder;
 import org.example.quickcode.langgraph4j.ai.ImageCollectionPlanService;
+import org.example.quickcode.langgraph4j.ai.ImageCollectionPlanServiceFactory;
 import org.example.quickcode.langgraph4j.model.ImageCollectionPlan;
 import org.example.quickcode.langgraph4j.model.ImageResource;
 import org.example.quickcode.langgraph4j.model.enums.ImageCategoryEnum;
@@ -86,7 +87,8 @@ public class ImageCollectorNode {
         List<ImageResource> collectedImages = new ArrayList<>();
 
         try {
-            ImageCollectionPlanService planService = SpringContextUtil.getBean(ImageCollectionPlanService.class);
+            ImageCollectionPlanServiceFactory factory = SpringContextUtil.getBean(ImageCollectionPlanServiceFactory.class);
+            ImageCollectionPlanService planService = factory.createImageCollectionPlanService();
             ImageCollectionPlan plan = planService.planImageCollection(originalPrompt);
             plan = limitPlan(plan);
             log.info("获取到图片收集计划，开始并发执行");

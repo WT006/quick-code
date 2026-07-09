@@ -8,6 +8,7 @@ import org.bsc.langgraph4j.prebuilt.MessagesState;
 import org.example.quickcode.langgraph4j.WorkflowExecutionHolder;
 import org.example.quickcode.utils.SpringContextUtil;
 import org.example.quickcode.langgraph4j.ai.CodeQualityCheckService;
+import org.example.quickcode.langgraph4j.ai.CodeQualityCheckServiceFactory;
 import org.example.quickcode.langgraph4j.model.QualityResult;
 import org.example.quickcode.langgraph4j.state.WorkflowContext;
 
@@ -43,7 +44,8 @@ public class CodeQualityCheckNode {
                             .build();
                 } else {
                     // 2. 调用 AI 进行代码质量检查
-                    CodeQualityCheckService qualityCheckService = SpringContextUtil.getBean(CodeQualityCheckService.class);
+                    CodeQualityCheckServiceFactory factory = SpringContextUtil.getBean(CodeQualityCheckServiceFactory.class);
+                    CodeQualityCheckService qualityCheckService = factory.createCodeQualityCheckService();
                     qualityResult = qualityCheckService.checkCodeQuality(codeContent);
                     log.info("代码质量检查完成 - 是否通过: {}", qualityResult.getIsValid());
                 }

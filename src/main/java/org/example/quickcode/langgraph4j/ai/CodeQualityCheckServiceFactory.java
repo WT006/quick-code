@@ -2,8 +2,8 @@ package org.example.quickcode.langgraph4j.ai;
 
 import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.service.AiServices;
-import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
+import org.example.quickcode.utils.SpringContextUtil;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -11,16 +11,18 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class CodeQualityCheckServiceFactory {
 
-    @Resource(name = "openAiChatModel")
-    private ChatModel chatModel;
-
     /**
-     * 创建代码质量检查 AI 服务
+     * 每次调用创建新实例，配合 prototype ChatModel 支持并发。
      */
-    @Bean
     public CodeQualityCheckService createCodeQualityCheckService() {
+        ChatModel chatModel = SpringContextUtil.getBean("routingChatModelPrototype", ChatModel.class);
         return AiServices.builder(CodeQualityCheckService.class)
                 .chatModel(chatModel)
                 .build();
+    }
+
+    @Bean
+    public CodeQualityCheckService codeQualityCheckService() {
+        return createCodeQualityCheckService();
     }
 }
