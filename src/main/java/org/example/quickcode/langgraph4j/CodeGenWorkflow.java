@@ -13,6 +13,7 @@ import org.example.quickcode.exception.ErrorCode;
 import org.example.quickcode.core.LangChain4jStreamUtils;
 import org.example.quickcode.langgraph4j.WorkflowExecutionHolder;
 import org.example.quickcode.langgraph4j.model.QualityResult;
+import org.example.quickcode.langgraph4j.model.enums.ImageCollectionMode;
 import org.example.quickcode.langgraph4j.node.*;
 import org.example.quickcode.langgraph4j.state.WorkflowContext;
 import org.example.quickcode.model.enums.CodeGenTypeEnum;
@@ -88,13 +89,20 @@ public class CodeGenWorkflow {
     private CompiledGraph<MessagesState<String>> createWorkflow() {
         try {
             return new MessagesStateGraph<String>()
+                    .addNode("image_intent_router", ImageIntentRouterNode.create())
                     .addNode("image_collector", ImageCollectorNode.create())
                     .addNode("prompt_enhancer", PromptEnhancerNode.create())
                     .addNode("router", RouterNode.create())
                     .addNode("code_generator", CodeGeneratorNode.create())
                     .addNode("code_quality_check", CodeQualityCheckNode.create())
                     .addNode("project_builder", ProjectBuilderNode.create())
-                    .addEdge(START, "image_collector")
+                    .addEdge(START, "image_intent_router")
+                    .addConditionalEdges("image_intent_router",
+                            edge_async(this::routeAfterImageIntent),
+                            Map.of(
+                                    "skip", "prompt_enhancer",
+                                    "collect", "image_collector"
+                            ))
                     .addEdge("image_collector", "prompt_enhancer")
                     .addEdge("prompt_enhancer", "router")
                     .addEdge("router", "code_generator")
@@ -111,6 +119,14 @@ public class CodeGenWorkflow {
         } catch (GraphStateException e) {
             throw new BusinessException(ErrorCode.OPERATION_ERROR, "工作流创建失败");
         }
+    }
+
+    private String routeAfterImageIntent(MessagesState<String> state) {
+        WorkflowContext context = WorkflowContext.getContext(state);
+        if (context.getImageCollectionMode() == ImageCollectionMode.SKIP) {
+            return "skip";
+        }
+        return "collect";
     }
 
     private String routeAfterQualityCheck(MessagesState<String> state) {

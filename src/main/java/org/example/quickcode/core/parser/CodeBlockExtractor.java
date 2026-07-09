@@ -69,6 +69,7 @@ public final class CodeBlockExtractor {
         return null;
     }
 
+
     private static String extractFirst(Pattern pattern, String content) {
         Matcher matcher = pattern.matcher(content);
         if (matcher.find()) {

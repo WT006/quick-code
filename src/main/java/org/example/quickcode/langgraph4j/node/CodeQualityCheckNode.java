@@ -74,8 +74,11 @@ public class CodeQualityCheckNode {
             ".html", ".htm", ".css", ".js", ".json", ".vue", ".ts", ".jsx", ".tsx"
     );
 
+    /** 质量检查传入 AI 的代码内容最大字符数 */
+    private static final int MAX_CODE_CONTENT_LENGTH = 6000;
+
     /**
-     * 读取并拼接代码目录下的所有代码文件
+     * 读取并拼接代码目录下的所有代码文件，限制总长度防止超 token 限制
      */
     private static String readAndConcatenateCodeFiles(String codeDir) {
         if (StrUtil.isBlank(codeDir)) {
@@ -88,20 +91,40 @@ public class CodeQualityCheckNode {
         }
         StringBuilder codeContent = new StringBuilder();
         codeContent.append("# 项目文件结构和代码内容\n\n");
-        // 使用 Hutool 的 walkFiles 方法遍历所有文件
+        // 使用 Hutool 的 walkFiles 方法遍历所有文件，限制总长度防止超 token 限制
         FileUtil.walkFiles(directory, file -> {
+            if (codeContent.length() >= MAX_CODE_CONTENT_LENGTH) {
+                return;
+            }
             // 过滤条件：跳过隐藏文件、特定目录下的文件、非代码文件
             if (shouldSkipFile(file, directory)) {
                 return;
             }
             if (isCodeFile(file)) {
                 String relativePath = FileUtil.subPath(directory.getAbsolutePath(), file.getAbsolutePath());
-                codeContent.append("## 文件: ").append(relativePath).append("\n\n");
+                String header = "## 文件: " + relativePath + "\n\n";
+                if (codeContent.length() + header.length() > MAX_CODE_CONTENT_LENGTH) {
+                    return;
+                }
+                codeContent.append(header);
                 String fileContent = FileUtil.readUtf8String(file);
-                codeContent.append(fileContent).append("\n\n");
+                String appendContent = fileContent + "\n\n";
+                // 如果当前文件内容会超限，只截取剩余部分
+                if (codeContent.length() + appendContent.length() > MAX_CODE_CONTENT_LENGTH) {
+                    int remaining = MAX_CODE_CONTENT_LENGTH - codeContent.length();
+                    if (remaining > 50) {
+                        codeContent.append(appendContent, 0, remaining);
+                    }
+                } else {
+                    codeContent.append(appendContent);
+                }
             }
         });
-        return codeContent.toString();
+        String result = codeContent.toString();
+        if (result.length() >= MAX_CODE_CONTENT_LENGTH) {
+            log.warn("代码内容超过限制({}字符)，已截断", MAX_CODE_CONTENT_LENGTH);
+        }
+        return result;
     }
 
     /**

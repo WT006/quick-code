@@ -79,7 +79,7 @@
                         />
                         <span>{{ seg.value }}</span>
                       </div>
-                      <div v-else-if="seg.type === 'tool'" class="tool-call-item">
+                      <div v-else-if="seg.type === 'tool'" :class="getToolSegmentClass(seg.value)">
                         <MarkdownRenderer :content="seg.value" />
                       </div>
                       <MarkdownRenderer
@@ -103,7 +103,11 @@
                     </div>
                   </div>
                   <div v-if="message.tools?.length" class="tool-calls-panel">
-                    <div v-for="(tool, toolIndex) in message.tools" :key="toolIndex" class="tool-call-item">
+                    <div
+                        v-for="(tool, toolIndex) in message.tools"
+                        :key="toolIndex"
+                        :class="getToolSegmentClass(tool)"
+                    >
                       <MarkdownRenderer :content="tool" />
                     </div>
                   </div>
@@ -273,6 +277,7 @@ import {
   appendContentSegment,
   appendStatusSegment,
   appendToolSegment,
+  getToolSegmentClass,
   parseChatHistoryMessage,
   type MessageSegment,
 } from '@/utils/chatMessageParser'
@@ -1080,11 +1085,39 @@ onUnmounted(() => {
 .tool-call-item {
   padding: 8px 12px;
   margin-bottom: 6px;
-  background: #fafafa;
-  border-left: 3px solid #52c41a;
   border-radius: 4px;
   font-size: 13px;
   color: #434343;
+}
+
+.tool-call-item.tool-write {
+  background: #f6ffed;
+  border-left: 3px solid #52c41a;
+  color: #389e0d;
+}
+
+.tool-call-item.tool-read {
+  background: #f9f0ff;
+  border-left: 3px solid #722ed1;
+  color: #531dab;
+}
+
+.tool-call-item.tool-modify {
+  background: #fff7e6;
+  border-left: 3px solid #fa8c16;
+  color: #d46b08;
+}
+
+.tool-call-item.tool-delete {
+  background: #fff2f0;
+  border-left: 3px solid #ff4d4f;
+  color: #cf1322;
+}
+
+.tool-call-item.tool-other {
+  background: #fafafa;
+  border-left: 3px solid #8c8c8c;
+  color: #595959;
 }
 
 .tool-call-item :deep(p) {

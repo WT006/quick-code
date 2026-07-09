@@ -109,8 +109,8 @@ public class AiCodeGeneratorServiceFactory {
                         ))
                         .inputGuardrails(new PromptSafetyInputGuardrail())
                         //.outputGuardrails(new RetryOutputGuardrail())  为了流式输出所以注释掉
-                        // 每次仅执行一个工具后再请求模型，保证写文件步骤逐步流式展示
-                        .maxSequentialToolsInvocations(1)
+                        // 允许单轮连续调用少量工具（如 readDir + readFile + writeFile），同时保证流式展示
+                        .maxSequentialToolsInvocations(5)
                         .build();
             }
             case HTML, MULTI_FILE -> {

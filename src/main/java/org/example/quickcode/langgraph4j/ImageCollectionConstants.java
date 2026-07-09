@@ -28,4 +28,7 @@ public final class ImageCollectionConstants {
 
     /** 单次 Undraw 搜索返回数量 */
     public static final int ILLUSTRATIONS_PER_TASK = 4;
+
+    /** 定向搜集（增量换图）最多返回张数 */
+    public static final int MAX_TARGETED_IMAGES = 2;
 }

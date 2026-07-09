@@ -7,6 +7,8 @@ import lombok.NoArgsConstructor;
 import org.bsc.langgraph4j.prebuilt.MessagesState;
 import org.example.quickcode.langgraph4j.model.ImageResource;
 import org.example.quickcode.langgraph4j.model.QualityResult;
+import org.example.quickcode.langgraph4j.model.enums.ImageCategoryEnum;
+import org.example.quickcode.langgraph4j.model.enums.ImageCollectionMode;
 import org.example.quickcode.model.enums.CodeGenTypeEnum;
 
 import java.io.Serial;
@@ -88,6 +90,28 @@ public class WorkflowContext implements Serializable {
      */
     @Builder.Default
     private int qualityCheckRetryCount = 0;
+
+    /**
+     * 是否为增量修改（已有生成产物）
+     */
+    @Builder.Default
+    private boolean incrementalMode = false;
+
+    /**
+     * 图片搜集模式
+     */
+    @Builder.Default
+    private ImageCollectionMode imageCollectionMode = ImageCollectionMode.FULL;
+
+    /**
+     * 定向搜集时的搜索关键词
+     */
+    private String targetedImageQuery;
+
+    /**
+     * 定向搜集时的图片类型
+     */
+    private ImageCategoryEnum targetedImageType;
 
     @Serial
     private static final long serialVersionUID = 1L;

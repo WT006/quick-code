@@ -122,8 +122,8 @@ public class FileDirReadTool extends BaseTool{
     public String generateToolExecutedResult(JSONObject arguments) {
         String relativeDirPath = arguments.getStr("relativeDirPath");
         if (StrUtil.isEmpty(relativeDirPath)) {
-            relativeDirPath = "根目录";
+            relativeDirPath = "项目根目录";
         }
-        return String.format("[工具调用] %s %s", getDisplayName(), relativeDirPath);
+        return String.format("正在读取目录：%s", relativeDirPath);
     }
 }

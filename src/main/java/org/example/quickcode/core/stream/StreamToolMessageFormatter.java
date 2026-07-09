@@ -11,17 +11,26 @@ import org.example.quickcode.ai.tools.BaseTool;
 import org.example.quickcode.ai.tools.ToolManager;
 import org.springframework.stereotype.Component;
 
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * 将 LangChain4j 工具调用消息格式化为前端可读的流式展示文本。
+ * 写入类工具使用 STEP 序号；读取/修改/删除等辅助工具使用轻量「正在xxx」格式。
  */
 @Component
 public class StreamToolMessageFormatter {
 
-    private static final Set<String> READ_TOOL_NAMES = Set.of("readFile", "readDir");
+    private static final Set<String> WRITE_TOOL_NAMES = Set.of("writeFile");
+
+    private static final Map<String, String> LIGHTWEIGHT_ACTION_PREFIX = Map.of(
+            "readFile", "正在读取",
+            "readDir", "正在读取目录",
+            "modifyFile", "正在修改",
+            "deleteFile", "正在删除"
+    );
 
     private final ConcurrentHashMap<Long, AtomicInteger> stepCounters = new ConcurrentHashMap<>();
 
@@ -37,9 +46,6 @@ public class StreamToolMessageFormatter {
     public String formatToolRequest(ToolRequestMessage toolRequestMessage, Set<String> seenToolIds) {
         String toolId = toolRequestMessage.getId();
         String toolName = toolRequestMessage.getName();
-        if (READ_TOOL_NAMES.contains(toolName)) {
-            return "";
-        }
         if (toolId != null && seenToolIds.contains(toolId)) {
             return "";
         }
@@ -65,14 +71,25 @@ public class StreamToolMessageFormatter {
     }
 
     private String formatExecutedLine(String toolName, JSONObject arguments, Long appId) {
+        if (WRITE_TOOL_NAMES.contains(toolName)) {
+            return formatWriteStepLine(toolName, arguments, appId);
+        }
+        if (LIGHTWEIGHT_ACTION_PREFIX.containsKey(toolName)) {
+            return formatLightweightLine(toolName, arguments);
+        }
         BaseTool tool = toolManager.getTool(toolName);
         String displayName = tool != null ? tool.getDisplayName() : toolName;
-
-        if (READ_TOOL_NAMES.contains(toolName)) {
-            return "";
+        String relativePath = resolveRelativePath(arguments);
+        if (StrUtil.isNotBlank(relativePath)) {
+            return String.format("正在操作：%s  %s", displayName, relativePath);
         }
+        return String.format("正在操作：%s", displayName);
+    }
 
-        String relativePath = resolveRelativePath(toolName, arguments);
+    private String formatWriteStepLine(String toolName, JSONObject arguments, Long appId) {
+        BaseTool tool = toolManager.getTool(toolName);
+        String displayName = tool != null ? tool.getDisplayName() : toolName;
+        String relativePath = resolveRelativePath(arguments);
         if (StrUtil.isBlank(relativePath)) {
             return String.format("STEP %d：%s", nextStep(appId), displayName);
         }
@@ -80,22 +97,23 @@ public class StreamToolMessageFormatter {
         return String.format("STEP %d：%s  %s  %s", nextStep(appId), displayName, fileName, relativePath);
     }
 
-    private String formatReadLine(String toolName, String displayName, JSONObject arguments) {
+    private String formatLightweightLine(String toolName, JSONObject arguments) {
+        String prefix = LIGHTWEIGHT_ACTION_PREFIX.get(toolName);
         if ("readDir".equals(toolName)) {
             String relativeDirPath = arguments.getStr("relativeDirPath");
             if (StrUtil.isBlank(relativeDirPath)) {
                 relativeDirPath = "项目根目录";
             }
-            return String.format("正在读取目录：%s", relativeDirPath);
+            return prefix + "：" + relativeDirPath;
         }
-        String relativeFilePath = arguments.getStr("relativeFilePath");
-        if (StrUtil.isBlank(relativeFilePath)) {
-            return String.format("正在%s", displayName);
+        String relativePath = resolveRelativePath(arguments);
+        if (StrUtil.isBlank(relativePath)) {
+            return prefix;
         }
-        return String.format("正在读取：%s", relativeFilePath);
+        return prefix + "：" + relativePath;
     }
 
-    private String resolveRelativePath(String toolName, JSONObject arguments) {
+    private String resolveRelativePath(JSONObject arguments) {
         if (arguments == null) {
             return null;
         }

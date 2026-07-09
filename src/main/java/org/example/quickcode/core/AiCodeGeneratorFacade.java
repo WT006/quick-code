@@ -20,7 +20,8 @@ import org.example.quickcode.langgraph4j.WorkflowExecutionHolder;
 import org.example.quickcode.constant.AppConstant;
 import org.example.quickcode.core.builder.VueProjectBuilder;
 import org.example.quickcode.core.MultiFilePhasedStreamSupport.Phase;
-import org.example.quickcode.core.stream.CodegenStepTextFilter;
+import org.example.quickcode.core.stream.CodegenIncrementalStreamFilter;
+import org.example.quickcode.core.stream.CodegenIncrementalStreamFilter.State;
 import org.example.quickcode.core.stream.StreamContentNormalizer;
 import org.example.quickcode.core.parser.CodeParserExecutor;
 import org.example.quickcode.core.saver.CodeFileSaverExecutor;
@@ -125,6 +126,11 @@ public class AiCodeGeneratorFacade {
      */
     private Flux<String> processCodeStream(Flux<String> result, CodeGenTypeEnum codeGenType, Long appId) {
         StringBuilder codeBuilder = new StringBuilder();
+        boolean incremental = CodegenOutputPaths.hasExistingOutput(appId, codeGenType);
+        State displayState = CodegenIncrementalStreamFilter.newState();
+        if (incremental && WorkflowExecutionHolder.isActive(appId)) {
+            WorkflowExecutionHolder.emitStatus(appId, "正在应用修改...");
+        }
         return result
                 .subscribeOn(Schedulers.boundedElastic())
                 .doOnNext(chunk -> {
@@ -134,7 +140,7 @@ public class AiCodeGeneratorFacade {
                     synchronized (codeBuilder) {
                         codeBuilder.append(chunk);
                     }
-                    String displayChunk = CodegenStepTextFilter.filterStreamChunk(chunk);
+                    String displayChunk = CodegenIncrementalStreamFilter.filterChunk(chunk, incremental, displayState);
                     if (StrUtil.isNotBlank(displayChunk) && WorkflowExecutionHolder.isActive(appId)) {
                         WorkflowExecutionHolder.emitContent(appId, displayChunk);
                     }
@@ -146,6 +152,9 @@ public class AiCodeGeneratorFacade {
                             completeCode = codeBuilder.toString();
                         }
                         saveStreamedCode(completeCode, codeGenType, appId);
+                        if (incremental && WorkflowExecutionHolder.isActive(appId)) {
+                            WorkflowExecutionHolder.emitStatus(appId, "已更新 index.html");
+                        }
                         return Flux.empty();
                     } catch (Exception e) {
                         log.error("生成代码失败：{}", e.getMessage(), e);
@@ -162,10 +171,15 @@ public class AiCodeGeneratorFacade {
      */
     private Flux<String> processMultiFilePhasedStream(AiCodeGeneratorService service, String userMessage, Long appId) {
         MultiFileCodeResult accumulated = new MultiFileCodeResult();
+        boolean incremental = CodegenOutputPaths.hasExistingOutput(appId, CodeGenTypeEnum.MULTI_FILE);
+        State displayState = CodegenIncrementalStreamFilter.newState();
+        if (incremental && WorkflowExecutionHolder.isActive(appId)) {
+            WorkflowExecutionHolder.emitStatus(appId, "正在应用修改...");
+        }
         return Flux.concat(
-                        runMultiFilePhase(Phase.HTML, service, userMessage, appId, accumulated),
-                        runMultiFilePhase(Phase.CSS, service, userMessage, appId, accumulated),
-                        runMultiFilePhase(Phase.JS, service, userMessage, appId, accumulated),
+                        runMultiFilePhase(Phase.HTML, service, userMessage, appId, accumulated, incremental, displayState),
+                        runMultiFilePhase(Phase.CSS, service, userMessage, appId, accumulated, incremental, displayState),
+                        runMultiFilePhase(Phase.JS, service, userMessage, appId, accumulated, incremental, displayState),
                         Flux.defer(() -> {
                             try {
                                 if (WorkflowExecutionHolder.isActive(appId)) {
@@ -190,7 +204,9 @@ public class AiCodeGeneratorFacade {
                                             AiCodeGeneratorService service,
                                             String userMessage,
                                             Long appId,
-                                            MultiFileCodeResult accumulated) {
+                                            MultiFileCodeResult accumulated,
+                                            boolean incremental,
+                                            State displayState) {
         StringBuilder phaseBuilder = new StringBuilder();
         // 必须使用多文件流式通道，避免 HTML 单文件提示词要求内联 CSS/JS 导致质检失败
         Flux<String> phaseStream = service.generateMultiFileCodeStream(
@@ -203,21 +219,25 @@ public class AiCodeGeneratorFacade {
                     }
                     return Flux.empty();
                 }),
-                phaseStream.doOnNext(chunk -> appendPhaseChunk(chunk, phaseBuilder, appId)),
+                phaseStream.doOnNext(chunk -> appendPhaseChunk(chunk, phaseBuilder, appId, incremental, displayState)),
                 Flux.defer(() -> {
                     MultiFilePhasedStreamSupport.applyPhaseResult(phase, phaseBuilder.toString(), accumulated);
                     log.info("多文件阶段完成: {}, appId={}, 阶段长度={}", phase.label(), appId, phaseBuilder.length());
+                    if (incremental && WorkflowExecutionHolder.isActive(appId)) {
+                        WorkflowExecutionHolder.emitStatus(appId, "已更新 " + phase.fileName());
+                    }
                     return Flux.empty();
                 })
         );
     }
 
-    private void appendPhaseChunk(String chunk, StringBuilder phaseBuilder, Long appId) {
+    private void appendPhaseChunk(String chunk, StringBuilder phaseBuilder, Long appId,
+                                  boolean incremental, State displayState) {
         if (StrUtil.isBlank(chunk)) {
             return;
         }
         phaseBuilder.append(chunk);
-        String displayChunk = CodegenStepTextFilter.filterStreamChunk(chunk);
+        String displayChunk = CodegenIncrementalStreamFilter.filterChunk(chunk, incremental, displayState);
         if (StrUtil.isNotBlank(displayChunk)) {
             appendAndEmitContent(appId, displayChunk);
         }
@@ -236,10 +256,6 @@ public class AiCodeGeneratorFacade {
                     "AI 未返回任何内容，请检查模型 API 是否正常或稍后重试");
         }
         int headLen = Math.min(500, completeCode.length());
-        log.info("【排查】流式内容前{}字:\n{}", headLen, completeCode.substring(0, headLen));
-        if (completeCode.length() > 500) {
-            log.info("【排查】流式内容后500字:\n{}", completeCode.substring(completeCode.length() - 500));
-        }
         Object parsedResult = CodeParserExecutor.executeParser(
                 StreamContentNormalizer.normalize(completeCode), codeGenType);
         if (codeGenType == CodeGenTypeEnum.HTML) {

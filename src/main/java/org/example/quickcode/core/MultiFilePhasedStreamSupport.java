@@ -32,6 +32,14 @@ final class MultiFilePhasedStreamSupport {
         String label() {
             return label;
         }
+
+        String fileName() {
+            return switch (this) {
+                case HTML -> "index.html";
+                case CSS -> "style.css";
+                case JS -> "script.js";
+            };
+        }
     }
 
     private MultiFilePhasedStreamSupport() {
