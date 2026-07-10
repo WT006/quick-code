@@ -31,7 +31,7 @@ public class AppCleanupScheduler {
     /**
      * 每周日凌晨 3 点清理已逻辑删除的应用及其关联资源
      */
-    @Scheduled(cron = "0 0 3 * * SUN")
+    @Scheduled(cron = "0 0 3 * * ?")
     public void cleanupDeletedApps() {
         log.info("开始定时清理已逻辑删除的应用资源");
         List<App> deletedApps;

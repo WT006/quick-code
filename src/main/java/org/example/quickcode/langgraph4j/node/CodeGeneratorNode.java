@@ -7,6 +7,7 @@ import org.example.quickcode.utils.SpringContextUtil;
 import org.example.quickcode.constant.AppConstant;
 import org.example.quickcode.core.AiCodeGeneratorFacade;
 import org.example.quickcode.core.LangChain4jStreamUtils;
+import org.example.quickcode.core.scaffold.VueProjectScaffoldInitializer;
 import org.example.quickcode.langgraph4j.WorkflowExecutionHolder;
 import org.example.quickcode.langgraph4j.model.QualityResult;
 import org.example.quickcode.langgraph4j.state.WorkflowContext;
@@ -38,7 +39,13 @@ public class CodeGeneratorNode {
                         String.format("代码审查未通过，正在第 %d 次重新生成...", context.getQualityCheckRetryCount()));
                 WorkflowExecutionHolder.emitContentReset(appId);
             } else if (generationType == CodeGenTypeEnum.VUE_PROJECT) {
-                WorkflowExecutionHolder.emitStatus(appId, "正在生成 Vue 项目代码");
+                VueProjectScaffoldInitializer scaffoldInitializer =
+                        SpringContextUtil.getBean(VueProjectScaffoldInitializer.class);
+                if (scaffoldInitializer.initIfAbsent(appId)) {
+                    WorkflowExecutionHolder.emitStatus(appId, "项目脚手架已就绪，正在生成业务代码...");
+                } else {
+                    WorkflowExecutionHolder.emitStatus(appId, "正在生成 Vue 项目代码");
+                }
             }
 
             boolean freshSession = generationType == CodeGenTypeEnum.VUE_PROJECT

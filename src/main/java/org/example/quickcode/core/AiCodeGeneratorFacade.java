@@ -37,6 +37,7 @@ import java.io.File;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * AI 代码生成外观类，组合生成和保存功能
@@ -44,6 +45,18 @@ import java.util.concurrent.atomic.AtomicBoolean;
 @Service
 @Slf4j
 public class AiCodeGeneratorFacade {
+
+    /** 单轮 LangChain4j 工具上限为 5，续跑时最多再跑若干轮 */
+    private static final int MAX_VUE_CONTINUATION_ROUNDS = 10;
+
+    private static final String VUE_CONTINUATION_USER_MESSAGE = """
+            请继续完成 Vue 项目生成（上一轮因单轮工具次数达上限而暂停，已写入的文件请勿重复创建）。
+            要求：
+            1）先用 readDir 查看当前项目结构，确认哪些文件尚未完成
+            2）只创建/修改尚未完成的业务页面、组件、路由和样式；禁止重写 package.json、vite.config.js、index.html、src/main.js
+            3）单轮最多调用 4 次工具，优先 writeFile 新页面；修改已有脚手架文件用 modifyFile
+            4）若已全部完成，仅用 1 行文字说明生成完毕，不要再调用工具
+            """;
 
     @Resource
     private AiCodeGeneratorServiceFactory aiCodeGeneratorServiceFactory;
@@ -114,11 +127,8 @@ public class AiCodeGeneratorFacade {
                 yield processCodeStream(codeStream, CodeGenTypeEnum.HTML, appId);
             }
             case MULTI_FILE -> processMultiFilePhasedStream(aiCodeGeneratorService, userMessage, appId);
-            case VUE_PROJECT -> {
-                TokenStream codeStream = aiCodeGeneratorService.generateVueProjectCodeStream(appId, userMessage);
-                // Vue 通过工具调用实时写文件，流内容为 JSON 消息，不走 HTML/CSS/JS 解析保存
-                yield processTokenStream(codeStream, appId);
-            }
+            case VUE_PROJECT ->
+                    processVueProjectStreamWithContinuation(appId, userMessage, freshSession);
             default -> {
                 String errorMessage = "不支持的生成类型：" + codeGenTypeEnum.getValue();
                 throw new BusinessException(ErrorCode.SYSTEM_ERROR, errorMessage);
@@ -279,9 +289,47 @@ public class AiCodeGeneratorFacade {
     }
 
     /**
+     * Vue 项目流式生成：单轮工具达上限时自动续跑，保留同一会话记忆。
+     */
+    private Flux<String> processVueProjectStreamWithContinuation(Long appId, String userMessage, boolean initialFreshSession) {
+        AtomicInteger round = new AtomicInteger(0);
+        return runVueProjectRound(appId, userMessage, initialFreshSession, round);
+    }
+
+    private Flux<String> runVueProjectRound(Long appId, String message, boolean freshSession, AtomicInteger round) {
+        AtomicBoolean toolLimitExceeded = new AtomicBoolean(false);
+        AiCodeGeneratorService service = aiCodeGeneratorServiceFactory.getAiCodeGeneratorService(
+                appId, CodeGenTypeEnum.VUE_PROJECT, freshSession);
+        TokenStream tokenStream = service.generateVueProjectCodeStream(appId, message);
+        int currentRound = round.get() + 1;
+        round.incrementAndGet();
+
+        return processTokenStream(tokenStream, appId, toolLimitExceeded)
+                .concatWith(Flux.defer(() -> {
+                    if (!toolLimitExceeded.get()) {
+                        return Flux.empty();
+                    }
+                    if (round.get() >= MAX_VUE_CONTINUATION_ROUNDS) {
+                        log.warn("Vue 单轮工具达上限且续跑轮次已用尽, appId={}", appId);
+                        if (WorkflowExecutionHolder.isActive(appId)) {
+                            WorkflowExecutionHolder.emitStatus(appId,
+                                    "工具调用次数较多，部分文件可能尚未完成，请查看预览或继续对话补充");
+                        }
+                        return Flux.empty();
+                    }
+                    log.info("Vue 单轮工具达上限，开始第 {} 轮续跑, appId={}", currentRound + 1, appId);
+                    if (WorkflowExecutionHolder.isActive(appId)) {
+                        WorkflowExecutionHolder.emitStatus(appId,
+                                String.format("单轮工具调用已达上限，正在继续生成（第 %d 轮）...", currentRound + 1));
+                    }
+                    return runVueProjectRound(appId, VUE_CONTINUATION_USER_MESSAGE, false, round);
+                }));
+    }
+
+    /**
      * 将 TokenStream 转换为 Flux<String>，并传递工具调用信息
      */
-    private Flux<String> processTokenStream(TokenStream tokenStream, Long appId) {
+    private Flux<String> processTokenStream(TokenStream tokenStream, Long appId, AtomicBoolean toolLimitExceeded) {
         return Flux.<String>create(sink -> {
             AtomicBoolean finished = new AtomicBoolean(false);
             Set<String> seenToolIds = new HashSet<>();
@@ -315,11 +363,18 @@ public class AiCodeGeneratorFacade {
                         }
                     })
                     .onCompleteResponse(response -> completeTokenStream(finished, sink, appId, response))
-                    .onError(error -> handleTokenStreamError(finished, sink, appId, error))
+                    .onError(error -> handleTokenStreamError(finished, sink, appId, error, toolLimitExceeded))
                     .start();
         }).onErrorResume(error -> {
             if (LangChain4jStreamUtils.isBenignNullResponseError(error)) {
                 log.warn("Vue 流式生成收尾异常，已忽略并继续: {}", error.getMessage());
+                return Flux.empty();
+            }
+            if (LangChain4jStreamUtils.isToolLimitExceededError(error)) {
+                log.warn("Vue 流式生成工具达上限，将尝试续跑: {}", error.getMessage());
+                if (toolLimitExceeded != null) {
+                    toolLimitExceeded.set(true);
+                }
                 return Flux.empty();
             }
             return Flux.error(error);
@@ -333,9 +388,18 @@ public class AiCodeGeneratorFacade {
         finishTokenStream(finished, sink, appId);
     }
 
-    private void handleTokenStreamError(AtomicBoolean finished, FluxSink<String> sink, Long appId, Throwable error) {
+    private void handleTokenStreamError(AtomicBoolean finished, FluxSink<String> sink, Long appId,
+                                        Throwable error, AtomicBoolean toolLimitExceeded) {
         if (LangChain4jStreamUtils.isBenignNullResponseError(error)) {
             log.warn("Vue Agent 流式结束异常（{}），工具调用可能已完成，按成功收尾处理", error.getMessage());
+            finishTokenStream(finished, sink, appId);
+            return;
+        }
+        if (LangChain4jStreamUtils.isToolLimitExceededError(error)) {
+            log.warn("Vue Agent 单轮工具调用达上限（{}），已写入文件将保留，准备续跑", error.getMessage());
+            if (toolLimitExceeded != null) {
+                toolLimitExceeded.set(true);
+            }
             finishTokenStream(finished, sink, appId);
             return;
         }

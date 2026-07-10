@@ -30,6 +30,23 @@ public final class LangChain4jStreamUtils {
         return false;
     }
 
+    /**
+     * LangChain4j 单轮连续工具调用超过 maxSequentialToolsInvocations 时会抛出此异常。
+     */
+    public static boolean isToolLimitExceededError(Throwable error) {
+        Throwable current = error;
+        while (current != null) {
+            String message = current.getMessage();
+            if (message != null
+                    && message.contains("sequential tool invocations")
+                    && message.contains("exceeded")) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
+    }
+
     public static boolean isRateLimitError(Throwable error) {
         Throwable current = error;
         while (current != null) {
