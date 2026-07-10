@@ -1,6 +1,8 @@
 # Quick Code — AI 代码生成平台
 
 Quick Code 是一个基于 **AI 对话** 的 Web 应用生成平台。用户用自然语言描述需求，系统会自动选择生成模式、编排工作流、生成可运行代码，并支持实时预览、一键部署与增量修改。
+<img width="3052" height="1687" alt="image" src="https://github.com/user-attachments/assets/c798ef29-0ec6-40b1-851d-9743997aba5c" />
+<img width="3041" height="1675" alt="image" src="https://github.com/user-attachments/assets/0c054c67-617e-4c52-b32d-72cc6661a480" />
 
 项目采用 **前后端分离** 架构：Spring Boot 后端负责 AI 编排与代码生成，Vue 3 前端提供对话式交互与可视化预览。
 
