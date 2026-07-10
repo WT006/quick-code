@@ -239,6 +239,18 @@ declare namespace API {
     userPassword?: string
   }
 
+  type UserPasswordUpdateRequest = {
+    oldPassword?: string
+    newPassword?: string
+    checkPassword?: string
+  }
+
+  type UserProfileUpdateRequest = {
+    userName?: string
+    userAvatar?: string
+    userProfile?: string
+  }
+
   type UserQueryRequest = {
     pageNum?: number
     pageSize?: number

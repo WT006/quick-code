@@ -262,32 +262,23 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, nextTick, onUnmounted, computed } from 'vue'
+import { ref, onMounted, nextTick, onActivated, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { useLoginUserStore } from '@/stores/loginUser'
+import { useChatStore } from '@/stores/chatStore'
 import {
-  getAppVoById,
   deployApp as deployAppApi,
   deleteApp as deleteAppApi,
 } from '@/api/appController'
-import { listAppChatHistory } from '@/api/chatHistoryController'
 import { CodeGenTypeEnum, formatCodeGenType } from '@/utils/codeGenTypes'
-import {
-  appendContentSegment,
-  appendStatusSegment,
-  appendToolSegment,
-  getToolSegmentClass,
-  parseChatHistoryMessage,
-  type MessageSegment,
-} from '@/utils/chatMessageParser'
+import { getToolSegmentClass } from '@/utils/chatMessageParser'
 import request from '@/request'
 
 import MarkdownRenderer from '@/components/MarkdownRenderer.vue'
 import AppDetailModal from '@/components/AppDetailModal.vue'
 import DeploySuccessModal from '@/components/DeploySuccessModal.vue'
 import aiAvatar from '@/assets/aiAvatar.png'
-import { API_BASE_URL, getStaticPreviewUrl } from '@/config/env'
 import { VisualEditor, type ElementInfo } from '@/utils/visualEditor'
 
 import {
@@ -299,39 +290,33 @@ import {
   EditOutlined,
 } from '@ant-design/icons-vue'
 
+defineOptions({
+  name: 'AppChatPage',
+})
+
 const route = useRoute()
 const router = useRouter()
 const loginUserStore = useLoginUserStore()
+const chatStore = useChatStore()
 
-// 应用信息
-const appInfo = ref<API.AppVO>()
-const appId = ref<any>()
+const appId = computed(() => String(route.params.id || ''))
+const session = computed(() => chatStore.getSession(appId.value))
 
-// 对话相关
-interface Message {
-  type: 'user' | 'ai'
-  content: string
-  loading?: boolean
-  createTime?: string
-  currentStatus?: string
-  statuses?: string[]
-  tools?: string[]
-  segments?: MessageSegment[]
-}
+const messages = computed(() => session.value.messages)
+const isGenerating = computed(() => session.value.isGenerating)
+const loadingHistory = computed(() => session.value.loadingHistory)
+const hasMoreHistory = computed(() => session.value.hasMoreHistory)
+const previewUrl = computed(() => session.value.previewUrl)
+const appInfo = computed(() => session.value.appInfo)
 
-const messages = ref<Message[]>([])
-const userInput = ref('')
-const isGenerating = ref(false)
+const userInput = computed({
+  get: () => session.value.userInput,
+  set: (val: string) => {
+    session.value.userInput = val
+  },
+})
+
 const messagesContainer = ref<HTMLElement>()
-
-// 对话历史相关
-const loadingHistory = ref(false)
-const hasMoreHistory = ref(false)
-const lastCreateTime = ref<string>()
-const historyLoaded = ref(false)
-
-// 预览相关
-const previewUrl = ref('')
 const previewReady = ref(false)
 
 // 部署相关
@@ -369,143 +354,9 @@ const showAppDetail = () => {
   appDetailVisible.value = true
 }
 
-// 加载对话历史
-const loadChatHistory = async (isLoadMore = false) => {
-  if (!appId.value || loadingHistory.value) return
-  loadingHistory.value = true
-  try {
-    const params: API.listAppChatHistoryParams = {
-      appId: appId.value,
-      pageSize: 10,
-    }
-    // 如果是加载更多，传递最后一条消息的创建时间作为游标
-    if (isLoadMore && lastCreateTime.value) {
-      params.lastCreateTime = lastCreateTime.value
-    }
-    const res = await listAppChatHistory(params)
-    if (res.data.code === 0 && res.data.data) {
-      const chatHistories = res.data.data.records || []
-      if (chatHistories.length > 0) {
-        // 将对话历史转换为消息格式，并按时间正序排列（老消息在前）
-        const historyMessages: Message[] = chatHistories
-            .map((chat) => {
-              const type = (chat.messageType === 'user' ? 'user' : 'ai') as 'user' | 'ai'
-              if (type === 'user') {
-                return {
-                  type,
-                  content: chat.message || '',
-                  createTime: chat.createTime,
-                }
-              }
-              const parsed = parseChatHistoryMessage(chat.message || '')
-              return {
-                type,
-                content: parsed.content,
-                statuses: parsed.statuses,
-                tools: parsed.tools,
-                segments: parsed.segments,
-                createTime: chat.createTime,
-              }
-            })
-            .reverse() // 反转数组，让老消息在前
-        if (isLoadMore) {
-          // 加载更多时，将历史消息添加到开头
-          messages.value.unshift(...historyMessages)
-        } else {
-          // 初始加载，直接设置消息列表
-          messages.value = historyMessages
-        }
-        // 更新游标
-        lastCreateTime.value = chatHistories[chatHistories.length - 1]?.createTime
-        // 检查是否还有更多历史
-        hasMoreHistory.value = chatHistories.length === 10
-      } else {
-        hasMoreHistory.value = false
-      }
-      historyLoaded.value = true
-    }
-  } catch (error) {
-    console.error('加载对话历史失败：', error)
-    message.error('加载对话历史失败')
-  } finally {
-    loadingHistory.value = false
-  }
-}
-
 // 加载更多历史消息
 const loadMoreHistory = async () => {
-  await loadChatHistory(true)
-}
-
-// 获取应用信息
-const fetchAppInfo = async () => {
-  const id = route.params.id as string
-  if (!id) {
-    message.error('应用ID不存在')
-    router.push('/')
-    return
-  }
-
-  appId.value = id
-
-  try {
-    const res = await getAppVoById({ id: id as unknown as number })
-    if (res.data.code === 0 && res.data.data) {
-      appInfo.value = res.data.data
-
-      // 先加载对话历史
-      await loadChatHistory()
-      // 有过对话记录时尝试加载预览（生成完成后刷新页面也能看到网站）
-      if (messages.value.length >= 1) {
-        updatePreview()
-      }
-      // 检查是否需要自动发送初始提示词
-      // 只有在是自己的应用且没有对话历史时才自动发送
-      if (
-          appInfo.value.initPrompt &&
-          isOwner.value &&
-          messages.value.length === 0 &&
-          historyLoaded.value
-      ) {
-        await sendInitialMessage(appInfo.value.initPrompt)
-      }
-    } else {
-      message.error('获取应用信息失败')
-      router.push('/')
-    }
-  } catch (error) {
-    console.error('获取应用信息失败：', error)
-    message.error('获取应用信息失败')
-    router.push('/')
-  }
-}
-
-// 发送初始消息
-const sendInitialMessage = async (prompt: string) => {
-  // 添加用户消息
-  messages.value.push({
-    type: 'user',
-    content: prompt,
-  })
-
-  // 添加AI消息占位符
-  const aiMessageIndex = messages.value.length
-  messages.value.push({
-    type: 'ai',
-    content: '',
-    loading: true,
-    currentStatus: '',
-    statuses: [],
-    tools: [],
-    segments: [],
-  })
-
-  await nextTick()
-  scrollToBottom()
-
-  // 开始生成
-  isGenerating.value = true
-  await generateCode(prompt, aiMessageIndex)
+  await chatStore.loadChatHistory(appId.value, true)
 }
 
 // 发送消息
@@ -514,8 +365,7 @@ const sendMessage = async () => {
     return
   }
 
-  let message = userInput.value.trim()
-  // 如果有选中的元素，将元素信息添加到提示词中
+  let content = userInput.value.trim()
   if (selectedElementInfo.value) {
     let elementContext = `\n\n选中元素信息：`
     if (selectedElementInfo.value.pagePath) {
@@ -525,16 +375,10 @@ const sendMessage = async () => {
     if (selectedElementInfo.value.textContent) {
       elementContext += `\n- 当前内容: ${selectedElementInfo.value.textContent.substring(0, 100)}`
     }
-    message += elementContext
+    content += elementContext
   }
   userInput.value = ''
-  // 添加用户消息（包含元素信息）
-  messages.value.push({
-    type: 'user',
-    content: message,
-  })
 
-  // 发送消息后，清除选中元素并退出编辑模式
   if (selectedElementInfo.value) {
     clearSelectedElement()
     if (isEditMode.value) {
@@ -542,206 +386,9 @@ const sendMessage = async () => {
     }
   }
 
-  // 添加AI消息占位符
-  const aiMessageIndex = messages.value.length
-  messages.value.push({
-    type: 'ai',
-    content: '',
-    loading: true,
-    currentStatus: '',
-    statuses: [],
-    tools: [],
-    segments: [],
-  })
-
+  await chatStore.sendMessage(appId.value, content)
   await nextTick()
   scrollToBottom()
-
-  // 开始生成
-  isGenerating.value = true
-  await generateCode(message, aiMessageIndex)
-}
-
-// 生成代码 - 使用 EventSource 处理流式响应
-const generateCode = async (userMessage: string, aiMessageIndex: number) => {
-  let eventSource: EventSource | null = null
-  let streamCompleted = false
-
-  try {
-    // 获取 axios 配置的 baseURL
-    const baseURL = request.defaults.baseURL || API_BASE_URL
-
-    // 构建URL参数
-    const params = new URLSearchParams({
-      appId: appId.value || '',
-      message: userMessage,
-    })
-
-    const url = `${baseURL}/app/chat/gen/code?${params}`
-
-    // 创建 EventSource 连接
-    eventSource = new EventSource(url, {
-      withCredentials: true,
-    })
-
-    let fullContent = ''
-
-    // 处理接收到的消息
-    eventSource.onmessage = function (event) {
-      if (streamCompleted) return
-
-      try {
-        const parsed = JSON.parse(event.data)
-        const chunkType = parsed.t || 'content'
-        const chunkData = parsed.d
-
-        if (chunkData === undefined || chunkData === null) return
-
-        const aiMessage = messages.value[aiMessageIndex]
-
-        if (chunkType === 'status') {
-          if (!aiMessage.statuses) aiMessage.statuses = []
-          aiMessage.statuses.push(chunkData)
-          aiMessage.currentStatus = chunkData
-          if (isVueProject.value) {
-            aiMessage.segments = appendStatusSegment(aiMessage.segments, chunkData)
-          }
-          // 重试生成时清空旧代码，避免正文叠加导致页面卡顿
-          if (typeof chunkData === 'string' && chunkData.includes('重新生成')) {
-            fullContent = ''
-            aiMessage.content = ''
-            aiMessage.segments = []
-            aiMessage.tools = []
-          }
-          if (isGenerating.value) {
-            aiMessage.loading = true
-          }
-        } else if (chunkType === 'reset') {
-          fullContent = ''
-          aiMessage.content = ''
-          aiMessage.segments = []
-          aiMessage.tools = []
-          if (isGenerating.value) {
-            aiMessage.loading = true
-          }
-        } else if (chunkType === 'tool') {
-          if (isVueProject.value) {
-            aiMessage.segments = appendToolSegment(aiMessage.segments, chunkData)
-          }
-          if (!aiMessage.tools) aiMessage.tools = []
-          aiMessage.tools.push(chunkData)
-          if (isGenerating.value) {
-            aiMessage.loading = true
-          }
-        } else {
-          fullContent += chunkData
-          aiMessage.content = fullContent
-          if (isVueProject.value) {
-            aiMessage.segments = appendContentSegment(aiMessage.segments, chunkData)
-          }
-          aiMessage.loading = false
-        }
-        scrollToBottom()
-      } catch (error) {
-        console.error('解析消息失败:', error)
-        handleError(error, aiMessageIndex)
-      }
-    }
-
-    // 处理done事件
-    eventSource.addEventListener('done', function () {
-      if (streamCompleted) return
-
-      streamCompleted = true
-      isGenerating.value = false
-      const aiMsg = messages.value[aiMessageIndex]
-      const hasContent = isVueProject.value
-          ? (aiMsg.segments?.length ?? 0) > 0
-          : !!aiMsg.content?.trim()
-      if (!hasContent) {
-        const fallback = '代码生成已完成，请在右侧预览网站。'
-        aiMsg.content = fallback
-        if (isVueProject.value) {
-          aiMsg.segments = appendContentSegment(aiMsg.segments, fallback)
-        }
-      }
-      aiMsg.loading = false
-      eventSource?.close()
-
-      // 延迟更新预览，确保后端已完成处理
-      setTimeout(async () => {
-        await fetchAppInfo()
-        updatePreview()
-      }, 1000)
-    })
-
-    // 处理business-error事件（后端限流等错误）
-    eventSource.addEventListener('business-error', function (event: MessageEvent) {
-      if (streamCompleted) return
-
-      try {
-        const errorData = JSON.parse(event.data)
-        console.error('SSE业务错误事件:', errorData)
-
-        // 显示具体的错误信息
-        const errorMessage = errorData.message || '生成过程中出现错误'
-        messages.value[aiMessageIndex].content = `❌ ${errorMessage}`
-        messages.value[aiMessageIndex].loading = false
-        message.error(errorMessage)
-
-        streamCompleted = true
-        isGenerating.value = false
-        eventSource?.close()
-      } catch (parseError) {
-        console.error('解析错误事件失败:', parseError, '原始数据:', event.data)
-        handleError(new Error('服务器返回错误'), aiMessageIndex)
-      }
-    })
-
-    // 处理错误
-    eventSource.onerror = function () {
-      if (streamCompleted || !isGenerating.value) return
-      // 检查是否是正常的连接关闭
-      if (eventSource?.readyState === EventSource.CONNECTING) {
-        streamCompleted = true
-        isGenerating.value = false
-        if (!messages.value[aiMessageIndex].content?.trim()) {
-          messages.value[aiMessageIndex].content = '代码生成已完成，请在右侧预览网站。'
-        }
-        messages.value[aiMessageIndex].loading = false
-        eventSource?.close()
-
-        setTimeout(async () => {
-          await fetchAppInfo()
-          updatePreview()
-        }, 1000)
-      } else {
-        handleError(new Error('SSE连接错误'), aiMessageIndex)
-      }
-    }
-  } catch (error) {
-    console.error('创建 EventSource 失败：', error)
-    handleError(error, aiMessageIndex)
-  }
-}
-
-// 错误处理函数
-const handleError = (error: unknown, aiMessageIndex: number) => {
-  console.error('生成代码失败：', error)
-  messages.value[aiMessageIndex].content = '抱歉，生成过程中出现了错误，请重试。'
-  messages.value[aiMessageIndex].loading = false
-  message.error('生成失败，请重试')
-  isGenerating.value = false
-}
-
-// 更新预览
-const updatePreview = () => {
-  if (appId.value) {
-    const codeGenType = appInfo.value?.codeGenType || CodeGenTypeEnum.HTML
-    const newPreviewUrl = `${getStaticPreviewUrl(codeGenType, appId.value)}?t=${Date.now()}`
-    previewUrl.value = newPreviewUrl
-    previewReady.value = true
-  }
 }
 
 // 滚动到底部
@@ -750,6 +397,39 @@ const scrollToBottom = () => {
     messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
   }
 }
+
+// 初始化页面
+const initPage = async () => {
+  const id = appId.value
+  if (!id) {
+    message.error('应用ID不存在')
+    router.push('/')
+    return
+  }
+  try {
+    await chatStore.ensureInitialized(id)
+    await nextTick()
+    scrollToBottom()
+  } catch {
+    router.push('/')
+  }
+}
+
+watch(
+  () => session.value.messages,
+  async () => {
+    await nextTick()
+    scrollToBottom()
+  },
+  { deep: true }
+)
+
+watch(isGenerating, async (generating) => {
+  if (!generating) {
+    await nextTick()
+    scrollToBottom()
+  }
+})
 
 // 下载代码
 const downloadCode = async () => {
@@ -857,6 +537,7 @@ const deleteApp = async () => {
     if (res.data.code === 0) {
       message.success('删除成功')
       appDetailVisible.value = false
+      chatStore.removeSession(String(appInfo.value.id))
       router.push('/')
     } else {
       message.error('删除失败：' + res.data.message)
@@ -898,17 +579,15 @@ const getInputPlaceholder = () => {
 
 // 页面加载时获取应用信息
 onMounted(() => {
-  fetchAppInfo()
-
-  // 监听 iframe 消息
+  initPage()
   window.addEventListener('message', (event) => {
     visualEditor.handleIframeMessage(event)
   })
 })
 
-// 清理资源
-onUnmounted(() => {
-  // EventSource 会在组件卸载时自动清理
+// 从其他页面返回时恢复状态
+onActivated(() => {
+  initPage()
 })
 </script>
 

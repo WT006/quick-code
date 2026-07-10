@@ -3,7 +3,10 @@ package org.example.quickcode.service;
 import com.mybatisflex.core.query.QueryWrapper;
 import com.mybatisflex.core.service.IService;
 import jakarta.servlet.http.HttpServletRequest;
+import org.example.quickcode.model.dto.user.UserPasswordUpdateRequest;
+import org.example.quickcode.model.dto.user.UserProfileUpdateRequest;
 import org.example.quickcode.model.dto.user.UserQueryRequest;
+import org.springframework.web.multipart.MultipartFile;
 import org.example.quickcode.model.entity.User;
 import org.example.quickcode.model.vo.LoginUserVO;
 import org.example.quickcode.model.vo.UserVO;
@@ -86,4 +89,19 @@ public interface UserService extends IService<User> {
      * @return
      */
     QueryWrapper getQueryWrapper(UserQueryRequest userQueryRequest);
+
+    /**
+     * 更新当前登录用户资料
+     */
+    LoginUserVO updateMyProfile(UserProfileUpdateRequest userProfileUpdateRequest, HttpServletRequest request);
+
+    /**
+     * 修改当前登录用户密码
+     */
+    boolean updatePassword(UserPasswordUpdateRequest userPasswordUpdateRequest, HttpServletRequest request);
+
+    /**
+     * 上传当前登录用户头像
+     */
+    String uploadAvatar(MultipartFile file, HttpServletRequest request);
 }

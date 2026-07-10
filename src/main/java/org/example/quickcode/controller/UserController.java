@@ -16,6 +16,7 @@ import org.example.quickcode.model.vo.UserVO;
 import org.example.quickcode.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -86,6 +87,39 @@ public class UserController {
         ThrowUtils.throwIf(request == null, ErrorCode.PARAMS_ERROR);
         boolean result = userService.userLogout(request);
         return ResultUtils.success(result);
+    }
+
+    /**
+     * 更新当前登录用户资料
+     */
+    @PostMapping("/update/my")
+    public BaseResponse<LoginUserVO> updateMyProfile(@RequestBody UserProfileUpdateRequest userProfileUpdateRequest,
+                                                     HttpServletRequest request) {
+        ThrowUtils.throwIf(userProfileUpdateRequest == null, ErrorCode.PARAMS_ERROR);
+        LoginUserVO loginUserVO = userService.updateMyProfile(userProfileUpdateRequest, request);
+        return ResultUtils.success(loginUserVO);
+    }
+
+    /**
+     * 修改当前登录用户密码
+     */
+    @PostMapping("/update/password")
+    public BaseResponse<Boolean> updatePassword(@RequestBody UserPasswordUpdateRequest userPasswordUpdateRequest,
+                                                  HttpServletRequest request) {
+        ThrowUtils.throwIf(userPasswordUpdateRequest == null, ErrorCode.PARAMS_ERROR);
+        boolean result = userService.updatePassword(userPasswordUpdateRequest, request);
+        return ResultUtils.success(result);
+    }
+
+    /**
+     * 上传当前登录用户头像
+     */
+    @PostMapping("/upload/avatar")
+    public BaseResponse<String> uploadAvatar(@RequestPart("file") MultipartFile file,
+                                             HttpServletRequest request) {
+        ThrowUtils.throwIf(file == null, ErrorCode.PARAMS_ERROR);
+        String avatarUrl = userService.uploadAvatar(file, request);
+        return ResultUtils.success(avatarUrl);
     }
 
     /**

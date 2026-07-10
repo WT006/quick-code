@@ -1,11 +1,15 @@
 <template>
   <a-layout class="basic-layout">
-    <!-- 顶部导航栏 -->
     <GlobalHeader />
-    <!-- 主要内容区域 -->
-    <a-layout-content class="main-content">
-      <router-view />
-    </a-layout-content>
+    <a-layout class="main-layout">
+      <a-layout-content class="main-content">
+        <router-view v-slot="{ Component }">
+          <keep-alive :include="['AppChatPage']">
+            <component :is="Component" :key="$route.fullPath" />
+          </keep-alive>
+        </router-view>
+      </a-layout-content>
+    </a-layout>
   </a-layout>
 </template>
 
@@ -15,7 +19,13 @@ import GlobalHeader from '@/components/GlobalHeader.vue'
 
 <style scoped>
 .basic-layout {
-  background: none;
+  min-height: 100vh;
+  background: #f5f7fa;
+}
+
+.main-layout {
+  margin-left: 220px;
+  min-height: 100vh;
 }
 
 .main-content {
@@ -23,5 +33,6 @@ import GlobalHeader from '@/components/GlobalHeader.vue'
   padding: 0;
   background: none;
   margin: 0;
+  min-height: 100vh;
 }
 </style>

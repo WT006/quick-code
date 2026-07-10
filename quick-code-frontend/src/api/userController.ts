@@ -114,6 +114,47 @@ export async function userRegister(
   })
 }
 
+/** 更新当前登录用户资料 POST /user/update/my */
+export async function updateMyProfile(
+  body: API.UserProfileUpdateRequest,
+  options?: { [key: string]: any }
+) {
+  return request<API.BaseResponseLoginUserVO>('/user/update/my', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    data: body,
+    ...(options || {}),
+  })
+}
+
+/** 修改当前登录用户密码 POST /user/update/password */
+export async function updatePassword(
+  body: API.UserPasswordUpdateRequest,
+  options?: { [key: string]: any }
+) {
+  return request<API.BaseResponseBoolean>('/user/update/password', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    data: body,
+    ...(options || {}),
+  })
+}
+
+/** 上传当前登录用户头像 POST /user/upload/avatar */
+export async function uploadAvatar(file: File, options?: { [key: string]: any }) {
+  const formData = new FormData()
+  formData.append('file', file)
+  return request<API.BaseResponseString>('/user/upload/avatar', {
+    method: 'POST',
+    data: formData,
+    ...(options || {}),
+  })
+}
+
 /** 此处后端没有提供注释 POST /user/update */
 export async function updateUser(body: API.UserUpdateRequest, options?: { [key: string]: any }) {
   return request<API.BaseResponseBoolean>('/user/update', {

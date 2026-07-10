@@ -123,6 +123,19 @@ export function appendToolSegment(
   return list
 }
 
+/** 生成结束后清除流式代码正文，仅保留状态与工具步骤 */
+export function clearStreamingCodeContent(message: {
+  content?: string
+  segments?: MessageSegment[]
+}) {
+  message.content = ''
+  if (message.segments) {
+    message.segments = message.segments.filter(
+      (segment) => segment.type === 'status' || segment.type === 'tool',
+    )
+  }
+}
+
 /** 按工具类型返回不同样式：写入=绿、读取=紫、修改=橙、删除=红 */
 export function getToolSegmentClass(value: string): string {
   const trimmed = value.trim()

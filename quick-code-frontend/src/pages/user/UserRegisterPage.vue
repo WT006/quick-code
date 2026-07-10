@@ -1,38 +1,51 @@
 <template>
-  <div id="userRegisterPage">
-    <h2 class="title">鱼皮 AI 应用生成 - 用户注册</h2>
-    <div class="desc">不写一行代码，生成完整应用</div>
-    <a-form :model="formState" name="basic" autocomplete="off" @finish="handleSubmit">
-      <a-form-item name="userAccount" :rules="[{ required: true, message: '请输入账号' }]">
-        <a-input v-model:value="formState.userAccount" placeholder="请输入账号" />
-      </a-form-item>
-      <a-form-item
-        name="userPassword"
-        :rules="[
-          { required: true, message: '请输入密码' },
-          { min: 8, message: '密码不能小于 8 位' },
-        ]"
-      >
-        <a-input-password v-model:value="formState.userPassword" placeholder="请输入密码" />
-      </a-form-item>
-      <a-form-item
-        name="checkPassword"
-        :rules="[
-          { required: true, message: '请确认密码' },
-          { min: 8, message: '密码不能小于 8 位' },
-          { validator: validateCheckPassword },
-        ]"
-      >
-        <a-input-password v-model:value="formState.checkPassword" placeholder="请确认密码" />
-      </a-form-item>
-      <div class="tips">
-        已有账号？
-        <RouterLink to="/user/login">去登录</RouterLink>
+  <div class="auth-page">
+    <div class="auth-card">
+      <div class="auth-header">
+        <img class="auth-logo" src="@/assets/logo.png" alt="QuickCode" />
+        <h2 class="title">QuickCode</h2>
+        <div class="desc">AI 应用生成平台 · 用户注册</div>
       </div>
-      <a-form-item>
-        <a-button type="primary" html-type="submit" style="width: 100%">注册</a-button>
-      </a-form-item>
-    </a-form>
+      <a-form :model="formState" name="basic" autocomplete="off" @finish="handleSubmit">
+        <a-form-item name="userAccount" :rules="[{ required: true, message: '请输入账号' }]">
+          <a-input v-model:value="formState.userAccount" placeholder="请输入账号" size="large" />
+        </a-form-item>
+        <a-form-item
+          name="userPassword"
+          :rules="[
+            { required: true, message: '请输入密码' },
+            { min: 8, message: '密码不能小于 8 位' },
+          ]"
+        >
+          <a-input-password
+            v-model:value="formState.userPassword"
+            placeholder="请输入密码"
+            size="large"
+          />
+        </a-form-item>
+        <a-form-item
+          name="checkPassword"
+          :rules="[
+            { required: true, message: '请确认密码' },
+            { min: 8, message: '密码不能小于 8 位' },
+            { validator: validateCheckPassword },
+          ]"
+        >
+          <a-input-password
+            v-model:value="formState.checkPassword"
+            placeholder="请确认密码"
+            size="large"
+          />
+        </a-form-item>
+        <div class="tips">
+          已有账号？
+          <RouterLink to="/user/login">去登录</RouterLink>
+        </div>
+        <a-form-item>
+          <a-button type="primary" html-type="submit" size="large" block>注册</a-button>
+        </a-form-item>
+      </a-form>
+    </div>
   </div>
 </template>
 
@@ -50,12 +63,6 @@ const formState = reactive<API.UserRegisterRequest>({
   checkPassword: '',
 })
 
-/**
- * 验证确认密码
- * @param rule
- * @param value
- * @param callback
- */
 const validateCheckPassword = (rule: unknown, value: string, callback: (error?: Error) => void) => {
   if (value && value !== formState.userPassword) {
     callback(new Error('两次输入密码不一致'))
@@ -64,13 +71,8 @@ const validateCheckPassword = (rule: unknown, value: string, callback: (error?: 
   }
 }
 
-/**
- * 提交表单
- * @param values
- */
 const handleSubmit = async (values: API.UserRegisterRequest) => {
   const res = await userRegister(values)
-  // 注册成功，跳转到登录页面
   if (res.data.code === 0) {
     message.success('注册成功')
     router.push({
@@ -84,28 +86,55 @@ const handleSubmit = async (values: API.UserRegisterRequest) => {
 </script>
 
 <style scoped>
-#userRegisterPage {
-  background: white;
-  max-width: 720px;
+.auth-page {
+  min-height: calc(100vh - 48px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
   padding: 24px;
-  margin: 24px auto;
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 420px;
+  background: #fff;
+  border-radius: 16px;
+  padding: 40px 32px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
+  border: 1px solid #f0f0f0;
+}
+
+.auth-header {
+  text-align: center;
+  margin-bottom: 32px;
+}
+
+.auth-logo {
+  width: 48px;
+  height: 48px;
+  margin-bottom: 12px;
 }
 
 .title {
-  text-align: center;
-  margin-bottom: 16px;
+  margin: 0 0 8px;
+  font-size: 24px;
+  font-weight: 600;
+  color: #1890ff;
 }
 
 .desc {
-  text-align: center;
-  color: #bbb;
-  margin-bottom: 16px;
+  color: #999;
+  font-size: 14px;
 }
 
 .tips {
   margin-bottom: 16px;
-  color: #bbb;
+  color: #999;
   font-size: 13px;
   text-align: right;
+}
+
+.tips a {
+  color: #1890ff;
 }
 </style>

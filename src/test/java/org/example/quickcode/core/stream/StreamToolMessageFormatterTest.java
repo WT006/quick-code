@@ -165,7 +165,6 @@ class StreamToolMessageFormatterTest {
         formatter.resetStepCounter(1L);
         StreamHistoryBuilder builder = new StreamHistoryBuilder();
         builder.appendStatus("正在生成 Vue 项目代码");
-        builder.appendRawContent("将创建商城首页和商品列表页。");
 
         ToolRequestMessage readRequest = new ToolRequestMessage();
         readRequest.setId("req-read");
@@ -195,7 +194,6 @@ class StreamToolMessageFormatterTest {
         assertTrue(message.contains("正在读取：src/App.vue"));
         assertTrue(message.contains("[选择工具] 写入文件"));
         assertTrue(message.contains("STEP 1：写入文件  App.vue  src/App.vue"));
-        assertTrue(message.contains("将创建商城首页和商品列表页。"));
         assertTrue(!message.contains("<template>"));
         assertTrue(!message.contains("```"));
     }

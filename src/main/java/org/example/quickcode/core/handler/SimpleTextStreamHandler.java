@@ -40,12 +40,9 @@ public class SimpleTextStreamHandler {
                 historyBuilder.appendStatus(data);
             } else if (StreamEventEncoder.TYPE_RESET.equals(type)) {
                 historyBuilder.resetContent();
-            } else if (StreamEventEncoder.TYPE_CONTENT.equals(type)) {
-                historyBuilder.appendRawContent(data);
             }
             return chunk;
         }
-        historyBuilder.appendRawContent(chunk);
         return StreamEventEncoder.content(chunk);
     }
 }

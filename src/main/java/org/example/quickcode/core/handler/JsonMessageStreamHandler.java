@@ -54,7 +54,6 @@ public class JsonMessageStreamHandler {
             return chunk;
         }
         if (!chunk.startsWith("{")) {
-            historyBuilder.appendRawContent(chunk);
             return StreamEventEncoder.content(chunk);
         }
         return convertLangChainChunk(chunk, historyBuilder, seenToolIds, appId);
@@ -65,8 +64,6 @@ public class JsonMessageStreamHandler {
         String data = StreamEventEncoder.getData(chunk);
         if (StreamEventEncoder.TYPE_STATUS.equals(type)) {
             historyBuilder.appendStatus(data);
-        } else if (StreamEventEncoder.TYPE_CONTENT.equals(type)) {
-            historyBuilder.appendRawContent(data);
         } else if (StreamEventEncoder.TYPE_TOOL.equals(type)) {
             historyBuilder.appendTool(data);
         } else if (StreamEventEncoder.TYPE_RESET.equals(type)) {
@@ -84,7 +81,6 @@ public class JsonMessageStreamHandler {
             case AI_RESPONSE -> {
                 AiResponseMessage aiMessage = JSONUtil.toBean(chunk, AiResponseMessage.class);
                 String data = aiMessage.getData();
-                historyBuilder.appendRawContent(data);
                 yield StreamEventEncoder.content(data);
             }
             case TOOL_REQUEST -> {

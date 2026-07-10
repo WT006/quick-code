@@ -159,73 +159,79 @@ onMounted(() => {
 <template>
   <div id="homePage">
     <div class="container">
-      <!-- 网站标题和描述 -->
-      <div class="hero-section">
-        <h1 class="hero-title">AI 应用生成平台</h1>
-        <p class="hero-description">一句话轻松创建网站应用</p>
-      </div>
+      <!-- Hero 区域 -->
+      <div class="hero-card">
+        <div class="hero-content">
+          <h1 class="hero-title">AI <span class="highlight">应用生成平台</span></h1>
+          <p class="hero-description">一句话轻松创建网站应用</p>
 
-      <!-- 用户提示词输入框 -->
-      <div class="input-section">
-        <a-textarea
-          v-model:value="userPrompt"
-          placeholder="帮我创建个人博客网站"
-          :rows="4"
-          :maxlength="1000"
-          class="prompt-input"
-        />
-        <div class="input-actions">
-          <a-button type="primary" size="large" @click="createApp" :loading="creating">
-            <template #icon>
-              <span>↑</span>
-            </template>
-          </a-button>
+          <div class="prompt-bar">
+            <a-textarea
+              v-model:value="userPrompt"
+              placeholder="描述你想创建的应用，例如：创建一个企业官网"
+              :maxlength="1000"
+              :auto-size="{ minRows: 1, maxRows: 4 }"
+              class="prompt-input"
+            />
+            <a-button type="primary" size="large" class="generate-btn" @click="createApp" :loading="creating">
+              生成应用 →
+            </a-button>
+          </div>
+
+          <div class="quick-actions">
+            <a-button
+              type="default"
+              @click="
+                setPrompt(
+                  '设计一个专业的企业官网，包含公司介绍、产品服务展示、新闻资讯、联系我们等页面。采用商务风格的设计，包含轮播图、产品展示卡片、团队介绍、客户案例展示，支持多语言切换和在线客服功能。',
+                )
+              "
+              >企业官网</a-button
+            >
+            <a-button
+              type="default"
+              @click="
+                setPrompt(
+                  '创建一个现代化的个人博客网站，包含文章列表、详情页、分类标签、搜索功能、评论系统和个人简介页面。采用简洁的设计风格，支持响应式布局，文章支持Markdown格式，首页展示最新文章和热门推荐。',
+                )
+              "
+              >个人博客</a-button
+            >
+            <a-button
+              type="default"
+              @click="
+                setPrompt(
+                  '构建一个功能完整的在线商城，包含商品展示、购物车、用户注册登录、订单管理、支付结算等功能。设计现代化的商品卡片布局，支持商品搜索筛选、用户评价、优惠券系统和会员积分功能。',
+                )
+              "
+              >在线商城</a-button
+            >
+            <a-button
+              type="default"
+              @click="
+                setPrompt(
+                  '制作一个精美的作品展示网站，适合设计师、摄影师、艺术家等创作者。包含作品画廊、项目详情页、个人简历、联系方式等模块。采用瀑布流或网格布局展示作品，支持图片放大预览和作品分类筛选。',
+                )
+              "
+              >作品展示</a-button
+            >
+            <a-button
+              type="default"
+              @click="
+                setPrompt(
+                  '创建一个功能完善的管理后台系统，包含用户管理、数据统计仪表盘、内容管理、权限控制和系统设置等模块。采用现代化的侧边栏布局，支持数据可视化图表展示。',
+                )
+              "
+              >管理后台</a-button
+            >
+          </div>
         </div>
+        <img class="hero-robot" src="@/assets/photo.png" alt="AI Assistant" />
       </div>
 
-      <!-- 快捷按钮 -->
-      <div class="quick-actions">
-        <a-button
-          type="default"
-          @click="
-            setPrompt(
-              '创建一个现代化的个人博客网站，包含文章列表、详情页、分类标签、搜索功能、评论系统和个人简介页面。采用简洁的设计风格，支持响应式布局，文章支持Markdown格式，首页展示最新文章和热门推荐。',
-            )
-          "
-          >个人博客网站</a-button
-        >
-        <a-button
-          type="default"
-          @click="
-            setPrompt(
-              '设计一个专业的企业官网，包含公司介绍、产品服务展示、新闻资讯、联系我们等页面。采用商务风格的设计，包含轮播图、产品展示卡片、团队介绍、客户案例展示，支持多语言切换和在线客服功能。',
-            )
-          "
-          >企业官网</a-button
-        >
-        <a-button
-          type="default"
-          @click="
-            setPrompt(
-              '构建一个功能完整的在线商城，包含商品展示、购物车、用户注册登录、订单管理、支付结算等功能。设计现代化的商品卡片布局，支持商品搜索筛选、用户评价、优惠券系统和会员积分功能。',
-            )
-          "
-          >在线商城</a-button
-        >
-        <a-button
-          type="default"
-          @click="
-            setPrompt(
-              '制作一个精美的作品展示网站，适合设计师、摄影师、艺术家等创作者。包含作品画廊、项目详情页、个人简历、联系方式等模块。采用瀑布流或网格布局展示作品，支持图片放大预览和作品分类筛选。',
-            )
-          "
-          >作品展示网站</a-button
-        >
-      </div>
-
-      <!-- 我的作品 -->
+      <!-- 我的应用 -->
       <div class="section">
-        <h2 class="section-title">我的作品</h2>
+        <h2 class="section-title">我的应用</h2>
         <div class="app-grid">
           <AppCard
             v-for="app in myApps"
@@ -278,299 +284,199 @@ onMounted(() => {
 <style scoped>
 #homePage {
   width: 100%;
-  margin: 0;
-  padding: 0;
   min-height: 100vh;
-  background:
-    linear-gradient(180deg, #f8fafc 0%, #f1f5f9 8%, #e2e8f0 20%, #cbd5e1 100%),
-    radial-gradient(circle at 20% 80%, rgba(59, 130, 246, 0.15) 0%, transparent 50%),
-    radial-gradient(circle at 80% 20%, rgba(139, 92, 246, 0.12) 0%, transparent 50%),
-    radial-gradient(circle at 40% 40%, rgba(16, 185, 129, 0.08) 0%, transparent 50%);
-  position: relative;
-  overflow: hidden;
-}
-
-/* 科技感网格背景 */
-#homePage::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-image:
-    linear-gradient(rgba(59, 130, 246, 0.05) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(59, 130, 246, 0.05) 1px, transparent 1px),
-    linear-gradient(rgba(139, 92, 246, 0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(139, 92, 246, 0.04) 1px, transparent 1px);
-  background-size:
-    100px 100px,
-    100px 100px,
-    20px 20px,
-    20px 20px;
-  pointer-events: none;
-  animation: gridFloat 20s ease-in-out infinite;
-}
-
-/* 动态光效 */
-#homePage::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background:
-    radial-gradient(
-      600px circle at var(--mouse-x, 50%) var(--mouse-y, 50%),
-      rgba(59, 130, 246, 0.08) 0%,
-      rgba(139, 92, 246, 0.06) 40%,
-      transparent 80%
-    ),
-    linear-gradient(45deg, transparent 30%, rgba(59, 130, 246, 0.04) 50%, transparent 70%),
-    linear-gradient(-45deg, transparent 30%, rgba(139, 92, 246, 0.04) 50%, transparent 70%);
-  pointer-events: none;
-  animation: lightPulse 8s ease-in-out infinite alternate;
-}
-
-@keyframes gridFloat {
-  0%,
-  100% {
-    transform: translate(0, 0);
-  }
-  50% {
-    transform: translate(5px, 5px);
-  }
-}
-
-@keyframes lightPulse {
-  0% {
-    opacity: 0.3;
-  }
-  100% {
-    opacity: 0.7;
-  }
+  background: #f5f7fa;
+  padding: 24px;
 }
 
 .container {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 20px;
-  position: relative;
-  z-index: 2;
   width: 100%;
   box-sizing: border-box;
 }
 
-/* 移除居中光束效果 */
-
-/* 英雄区域 */
-.hero-section {
-  text-align: center;
-  padding: 80px 0 60px;
-  margin-bottom: 28px;
-  color: #1e293b;
+/* Hero 卡片 */
+.hero-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: linear-gradient(135deg, #e8f4fd 0%, #dbeafe 50%, #e0e7ff 100%);
+  border-radius: 20px;
+  padding: 48px 40px;
+  margin-bottom: 32px;
   position: relative;
   overflow: hidden;
 }
 
-.hero-section::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background:
-    radial-gradient(ellipse 800px 400px at center, rgba(59, 130, 246, 0.12) 0%, transparent 70%),
-    linear-gradient(45deg, transparent 30%, rgba(139, 92, 246, 0.05) 50%, transparent 70%),
-    linear-gradient(-45deg, transparent 30%, rgba(16, 185, 129, 0.04) 50%, transparent 70%);
-  animation: heroGlow 10s ease-in-out infinite alternate;
-}
-
-@keyframes heroGlow {
-  0% {
-    opacity: 0.6;
-    transform: scale(1);
-  }
-  100% {
-    opacity: 1;
-    transform: scale(1.02);
-  }
-}
-
-@keyframes rotate {
-  0% {
-    transform: translate(-50%, -50%) rotate(0deg);
-  }
-  100% {
-    transform: translate(-50%, -50%) rotate(360deg);
-  }
+.hero-content {
+  flex: 1;
+  max-width: 640px;
+  z-index: 1;
 }
 
 .hero-title {
-  font-size: 56px;
+  font-size: 36px;
   font-weight: 700;
-  margin: 0 0 20px;
-  line-height: 1.2;
-  background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 50%, #10b981 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  letter-spacing: -1px;
-  position: relative;
-  z-index: 2;
-  animation: titleShimmer 3s ease-in-out infinite;
+  margin: 0 0 12px;
+  color: #1a1a1a;
+  line-height: 1.3;
 }
 
-@keyframes titleShimmer {
-  0%,
-  100% {
-    background-position: 0% 50%;
-  }
-  50% {
-    background-position: 100% 50%;
-  }
+.hero-title .highlight {
+  color: #1890ff;
 }
 
 .hero-description {
-  font-size: 20px;
-  margin: 0;
-  opacity: 0.8;
-  color: #64748b;
-  position: relative;
-  z-index: 2;
+  font-size: 16px;
+  color: #666;
+  margin: 0 0 28px;
 }
 
-/* 输入区域 */
-.input-section {
-  position: relative;
-  margin: 0 auto 24px;
-  max-width: 800px;
+.prompt-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #fff;
+  border-radius: 12px;
+  padding: 8px 12px 8px 16px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+  margin-bottom: 20px;
 }
 
 .prompt-input {
-  border-radius: 16px;
+  flex: 1;
+  border: none !important;
+  box-shadow: none !important;
+  font-size: 15px;
+  line-height: 24px;
+  resize: none;
+  padding: 0;
+}
+
+.prompt-input:focus,
+.prompt-input:hover {
+  box-shadow: none !important;
+}
+
+.prompt-input :deep(.ant-input) {
   border: none;
-  font-size: 16px;
-  padding: 20px 60px 20px 20px;
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(20px);
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+  box-shadow: none;
+  padding: 10px 0;
+  word-break: break-word;
+  white-space: pre-wrap;
+  line-height: 24px;
+  min-height: 24px;
 }
 
-.prompt-input:focus {
-  background: rgba(255, 255, 255, 1);
-  box-shadow: 0 15px 50px rgba(0, 0, 0, 0.3);
-  transform: translateY(-2px);
+.prompt-input :deep(.ant-input:focus) {
+  box-shadow: none;
 }
 
-.input-actions {
-  position: absolute;
-  bottom: 12px;
-  right: 12px;
-  display: flex;
-  gap: 8px;
-  align-items: center;
+.generate-btn {
+  border-radius: 8px;
+  flex-shrink: 0;
+  height: 44px;
+  padding: 0 24px;
+  font-size: 15px;
 }
 
-/* 快捷按钮 */
 .quick-actions {
   display: flex;
-  gap: 12px;
-  justify-content: center;
-  margin-bottom: 60px;
+  gap: 10px;
   flex-wrap: wrap;
 }
 
 .quick-actions .ant-btn {
-  border-radius: 25px;
-  padding: 8px 20px;
+  border-radius: 20px;
+  padding: 4px 16px;
   height: auto;
-  background: rgba(255, 255, 255, 0.8);
-  border: 1px solid rgba(59, 130, 246, 0.2);
-  color: #475569;
-  backdrop-filter: blur(15px);
-  transition: all 0.3s;
-  position: relative;
-  overflow: hidden;
-}
-
-.quick-actions .ant-btn::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(59, 130, 246, 0.1), transparent);
-  transition: left 0.5s;
-}
-
-.quick-actions .ant-btn:hover::before {
-  left: 100%;
+  font-size: 13px;
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(24, 144, 255, 0.15);
+  color: #555;
 }
 
 .quick-actions .ant-btn:hover {
-  background: rgba(255, 255, 255, 0.9);
-  border-color: rgba(59, 130, 246, 0.4);
-  color: #3b82f6;
-  transform: translateY(-2px);
-  box-shadow: 0 8px 25px rgba(59, 130, 246, 0.2);
+  color: #1890ff;
+  border-color: #1890ff;
+  background: #fff;
 }
 
-/* 区域标题 */
+.hero-robot {
+  width: 280px;
+  height: 280px;
+  object-fit: contain;
+  flex-shrink: 0;
+  margin-left: 24px;
+}
+
+/* 区域 */
 .section {
-  margin-bottom: 60px;
+  margin-bottom: 32px;
 }
 
 .section-title {
-  font-size: 32px;
+  font-size: 20px;
   font-weight: 600;
-  margin-bottom: 32px;
-  color: #1e293b;
+  margin-bottom: 20px;
+  color: #1a1a1a;
 }
 
-/* 我的作品网格 */
-.app-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: 24px;
-  margin-bottom: 32px;
-}
-
-/* 精选案例网格 */
+.app-grid,
 .featured-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: 24px;
-  margin-bottom: 32px;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 20px;
+  margin-bottom: 24px;
 }
 
-/* 分页 */
 .pagination-wrapper {
   display: flex;
   justify-content: center;
-  margin-top: 32px;
 }
 
-/* 响应式设计 */
 @media (max-width: 768px) {
-  .hero-title {
-    font-size: 32px;
+  #homePage {
+    padding: 16px;
   }
 
-  .hero-description {
-    font-size: 16px;
+  .hero-card {
+    flex-direction: column;
+    padding: 32px 24px;
+    text-align: center;
+  }
+
+  .hero-content {
+    max-width: 100%;
+  }
+
+  .hero-title {
+    font-size: 28px;
+  }
+
+  .hero-robot {
+    width: 180px;
+    height: 180px;
+    margin: 24px 0 0;
+  }
+
+  .prompt-bar {
+    flex-direction: column;
+    padding: 12px;
+  }
+
+  .generate-btn {
+    width: 100%;
+  }
+
+  .quick-actions {
+    justify-content: center;
   }
 
   .app-grid,
   .featured-grid {
     grid-template-columns: 1fr;
-  }
-
-  .quick-actions {
-    justify-content: center;
   }
 }
 </style>

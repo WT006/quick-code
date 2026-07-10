@@ -265,8 +265,11 @@ const deleteApp = async (id: number | undefined) => {
 <style scoped>
 #appManagePage {
   padding: 24px;
-  background: white;
-  margin-top: 16px;
+  margin: 24px;
+  background: #fff;
+  border-radius: 12px;
+  border: 1px solid #f0f0f0;
+  min-height: calc(100vh - 48px);
 }
 
 .no-cover {
