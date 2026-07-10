@@ -302,19 +302,3 @@ mvn test
 # 前端构建
 cd quick-code-frontend && npm run build
 ```
-
----
-
-## 注意事项
-
-- AI 模型 API Key 请勿提交到版本库，使用 `application-local.yml` 管理
-- Vue 工程构建依赖本机 Node.js 与 npm，请确保已安装且在 PATH 中
-- 部署与截图功能依赖 Selenium + ChromeDriver（项目内置 Windows 版驱动）
-- AI 对话接口有用户级限流（默认 5 次/分钟），可在 `@RateLimit` 注解处调整
-- `tmp/` 目录为运行时产物，已加入 `.gitignore`
-
----
-
-## License
-
-MIT
