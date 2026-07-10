@@ -14,7 +14,13 @@ export const STATIC_BASE_URL = `${API_BASE_URL}/static`
 
 // 获取部署应用的完整URL
 export const getDeployUrl = (deployKey: string) => {
-  return `${DEPLOY_DOMAIN}/${deployKey}`
+  const deployDomain = import.meta.env.VITE_DEPLOY_DOMAIN
+  if (deployDomain && deployDomain !== 'http://localhost') {
+    return `${deployDomain.replace(/\/$/, '')}/${deployKey}/`
+  }
+  const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8123/api'
+  const base = apiBase.startsWith('http') ? apiBase : `${window.location.origin}${apiBase}`
+  return `${base.replace(/\/$/, '')}/deploy/${deployKey}/`
 }
 
 // 获取静态资源预览URL

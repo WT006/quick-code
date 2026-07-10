@@ -22,8 +22,8 @@ public interface AppConstant {
     String CODE_DEPLOY_ROOT_DIR = System.getProperty("user.dir") + "/tmp/code_deploy";
 
     /**
-     * 应用部署域名
+     * 应用部署域名（默认本地，生产环境请在 application.yml 中配置 codegen.deploy-host）
      */
-    String CODE_DEPLOY_HOST = "http://localhost";
+    String CODE_DEPLOY_HOST = "http://localhost:8123/api/deploy";
 
 }

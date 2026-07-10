@@ -6,10 +6,25 @@
         <span>🤖</span>
       </div>
       <div class="app-overlay">
-        <a-space>
-          <a-button type="primary" @click="handleViewChat">查看对话</a-button>
-          <a-button v-if="app.deployKey" type="default" @click="handleViewWork">查看作品</a-button>
-        </a-space>
+        <div class="app-overlay-actions">
+          <div class="action-row">
+            <a-button type="primary" size="small" @click.stop="handleViewChat">查看对话</a-button>
+            <a-button v-if="app.deployKey" type="default" size="small" @click.stop="handleViewWork">
+              查看作品
+            </a-button>
+          </div>
+          <div v-if="editable" class="action-row">
+            <a-button type="default" size="small" @click.stop="handleRename">重命名</a-button>
+            <a-popconfirm
+              title="确定要删除这个应用吗？"
+              ok-text="确定"
+              cancel-text="取消"
+              @confirm="handleDelete"
+            >
+              <a-button danger size="small" @click.stop>删除</a-button>
+            </a-popconfirm>
+          </div>
+        </div>
       </div>
     </div>
     <div class="app-info">
@@ -32,15 +47,19 @@
 interface Props {
   app: API.AppVO
   featured?: boolean
+  editable?: boolean
 }
 
 interface Emits {
   (e: 'view-chat', appId: string | number | undefined): void
   (e: 'view-work', app: API.AppVO): void
+  (e: 'rename', app: API.AppVO): void
+  (e: 'delete', app: API.AppVO): void
 }
 
 const props = withDefaults(defineProps<Props>(), {
   featured: false,
+  editable: false,
 })
 
 const emit = defineEmits<Emits>()
@@ -51,6 +70,14 @@ const handleViewChat = () => {
 
 const handleViewWork = () => {
   emit('view-work', props.app)
+}
+
+const handleRename = () => {
+  emit('rename', props.app)
+}
+
+const handleDelete = () => {
+  emit('delete', props.app)
 }
 </script>
 
@@ -109,6 +136,22 @@ const handleViewWork = () => {
 
 .app-card:hover .app-overlay {
   opacity: 1;
+}
+
+.app-overlay-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+}
+
+.action-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .app-info {

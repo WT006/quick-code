@@ -4,6 +4,17 @@
     <div class="header-bar">
       <div class="header-left">
         <h1 class="app-name">{{ appInfo?.appName || '网站生成器' }}</h1>
+        <a-button
+          v-if="isOwner"
+          type="text"
+          size="small"
+          class="rename-btn"
+          @click="showRenameModal"
+        >
+          <template #icon>
+            <FormOutlined />
+          </template>
+        </a-button>
         <a-tag v-if="appInfo?.codeGenType" color="blue" class="code-gen-type-tag">
           {{ formatCodeGenType(appInfo.codeGenType) }}
         </a-tag>
@@ -248,8 +259,15 @@
         v-model:open="appDetailVisible"
         :app="appInfo"
         :show-actions="isOwner || isAdmin"
-        @edit="editApp"
+        @rename="showRenameModal"
         @delete="deleteApp"
+    />
+
+    <AppRenameModal
+        v-model:open="renameModalVisible"
+        :app-id="appInfo?.id"
+        :app-name="appInfo?.appName"
+        @success="handleRenameSuccess"
     />
 
     <!-- 部署成功弹窗 -->
@@ -277,6 +295,7 @@ import request from '@/request'
 
 import MarkdownRenderer from '@/components/MarkdownRenderer.vue'
 import AppDetailModal from '@/components/AppDetailModal.vue'
+import AppRenameModal from '@/components/AppRenameModal.vue'
 import DeploySuccessModal from '@/components/DeploySuccessModal.vue'
 import aiAvatar from '@/assets/aiAvatar.png'
 import { VisualEditor, type ElementInfo } from '@/utils/visualEditor'
@@ -288,6 +307,7 @@ import {
   InfoCircleOutlined,
   DownloadOutlined,
   EditOutlined,
+  FormOutlined,
 } from '@ant-design/icons-vue'
 
 defineOptions({
@@ -348,10 +368,20 @@ const isAdmin = computed(() => {
 const isVueProject = computed(() => appInfo.value?.codeGenType === CodeGenTypeEnum.VUE_PROJECT)
 
 const appDetailVisible = ref(false)
+const renameModalVisible = ref(false)
 
 // 显示应用详情
 const showAppDetail = () => {
   appDetailVisible.value = true
+}
+
+const showRenameModal = () => {
+  appDetailVisible.value = false
+  renameModalVisible.value = true
+}
+
+const handleRenameSuccess = (newName: string) => {
+  chatStore.updateAppName(appId.value, newName)
 }
 
 // 加载更多历史消息
@@ -521,13 +551,6 @@ const onIframeLoad = () => {
   }
 }
 
-// 编辑应用
-const editApp = () => {
-  if (appInfo.value?.id) {
-    router.push(`/app/edit/${appInfo.value.id}`)
-  }
-}
-
 // 删除应用
 const deleteApp = async () => {
   if (!appInfo.value?.id) return
@@ -623,6 +646,15 @@ onActivated(() => {
   font-size: 18px;
   font-weight: 600;
   color: #1a1a1a;
+}
+
+.rename-btn {
+  color: #8c8c8c;
+  padding: 0 4px;
+}
+
+.rename-btn:hover {
+  color: #1890ff;
 }
 
 .header-right {

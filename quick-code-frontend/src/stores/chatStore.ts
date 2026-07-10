@@ -191,12 +191,34 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
+  async function refreshAppInfo(appId: string) {
+    const session = getSession(appId)
+    try {
+      const res = await getAppVoById({ id: appId as unknown as number })
+      if (res.data.code === 0 && res.data.data) {
+        session.appInfo = res.data.data
+      }
+    } catch (error) {
+      console.error('刷新应用信息失败：', error)
+    }
+  }
+
+  function updateAppName(appId: string, appName: string) {
+    const session = getSession(appId)
+    if (session.appInfo) {
+      session.appInfo = { ...session.appInfo, appName }
+    }
+  }
+
   async function ensureInitialized(appId: string) {
     const session = getSession(appId)
     if (!session.initialized) {
       await fetchAppInfo(appId)
-    } else if (!session.isGenerating) {
-      await syncIfPendingAi(appId)
+    } else {
+      await refreshAppInfo(appId)
+      if (!session.isGenerating) {
+        await syncIfPendingAi(appId)
+      }
     }
   }
 
@@ -406,6 +428,8 @@ export const useChatStore = defineStore('chat', () => {
     loadChatHistory,
     syncIfPendingAi,
     fetchAppInfo,
+    refreshAppInfo,
+    updateAppName,
     ensureInitialized,
     sendInitialMessage,
     sendMessage,

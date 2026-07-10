@@ -3,12 +3,15 @@ import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { useLoginUserStore } from '@/stores/loginUser'
-import { addApp, listMyAppVoByPage, listGoodAppVoByPage } from '@/api/appController'
+import { addApp, deleteApp, listMyAppVoByPage, listGoodAppVoByPage } from '@/api/appController'
+import { useChatStore } from '@/stores/chatStore'
 import { getDeployUrl } from '@/config/env'
 import AppCard from '@/components/AppCard.vue'
+import AppRenameModal from '@/components/AppRenameModal.vue'
 
 const router = useRouter()
 const loginUserStore = useLoginUserStore()
+const chatStore = useChatStore()
 
 // 用户提示词
 const userPrompt = ref('')
@@ -114,6 +117,47 @@ const loadFeaturedApps = async () => {
   }
 }
 
+// 重命名
+const renameModalVisible = ref(false)
+const renameTarget = ref<API.AppVO | null>(null)
+
+const openRenameModal = (app: API.AppVO) => {
+  renameTarget.value = app
+  renameModalVisible.value = true
+}
+
+const handleRenameSuccess = (newName: string) => {
+  if (renameTarget.value?.id) {
+    const target = myApps.value.find((app) => app.id === renameTarget.value?.id)
+    if (target) {
+      target.appName = newName
+    }
+  }
+  renameModalVisible.value = false
+}
+
+// 删除应用
+const handleDeleteApp = async (app: API.AppVO) => {
+  if (!app.id) return
+
+  try {
+    const res = await deleteApp({ id: app.id })
+    if (res.data.code === 0) {
+      message.success('删除成功')
+      chatStore.removeSession(String(app.id))
+      if (myApps.value.length === 1 && myAppsPage.current > 1) {
+        myAppsPage.current -= 1
+      }
+      await loadMyApps()
+    } else {
+      message.error('删除失败：' + res.data.message)
+    }
+  } catch (error) {
+    console.error('删除应用失败：', error)
+    message.error('删除失败，请重试')
+  }
+}
+
 // 查看对话
 const viewChat = (appId: string | number | undefined) => {
   if (appId) {
@@ -135,7 +179,6 @@ const viewWork = (app: API.AppVO) => {
 onMounted(() => {
   loadMyApps()
   loadFeaturedApps()
-
   // 鼠标跟随光效
   const handleMouseMove = (e: MouseEvent) => {
     const { clientX, clientY } = e
@@ -237,8 +280,11 @@ onMounted(() => {
             v-for="app in myApps"
             :key="app.id"
             :app="app"
+            :editable="true"
             @view-chat="viewChat"
             @view-work="viewWork"
+            @rename="openRenameModal"
+            @delete="handleDeleteApp"
           />
         </div>
         <div class="pagination-wrapper">
@@ -278,6 +324,13 @@ onMounted(() => {
         </div>
       </div>
     </div>
+
+    <AppRenameModal
+      v-model:open="renameModalVisible"
+      :app-id="renameTarget?.id"
+      :app-name="renameTarget?.appName"
+      @success="handleRenameSuccess"
+    />
   </div>
 </template>
 

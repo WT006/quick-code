@@ -190,9 +190,13 @@ public class   AppController {
         if (!oldApp.getUserId().equals(loginUser.getId())) {
             throw new BusinessException(ErrorCode.NO_AUTH_ERROR);
         }
+        String appName = appUpdateRequest.getAppName();
+        ThrowUtils.throwIf(StrUtil.isBlank(appName), ErrorCode.PARAMS_ERROR, "应用名称不能为空");
+        appName = appName.trim();
+        ThrowUtils.throwIf(appName.length() > 50, ErrorCode.PARAMS_ERROR, "应用名称不能超过50个字符");
         App app = new App();
         app.setId(id);
-        app.setAppName(appUpdateRequest.getAppName());
+        app.setAppName(appName);
         // 设置编辑时间
         app.setEditTime(LocalDateTime.now());
         boolean result = appService.updateById(app);

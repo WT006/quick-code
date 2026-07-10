@@ -94,7 +94,7 @@ public class CodeGenWorkflow {
                     .addNode("prompt_enhancer", PromptEnhancerNode.create())
                     .addNode("router", RouterNode.create())
                     .addNode("code_generator", CodeGeneratorNode.create())
-                    .addNode("code_quality_check", CodeQualityCheckNode.create())
+//                    .addNode("code_quality_check", CodeQualityCheckNode.create())
                     .addNode("project_builder", ProjectBuilderNode.create())
                     .addEdge(START, "image_intent_router")
                     .addConditionalEdges("image_intent_router",
@@ -106,14 +106,21 @@ public class CodeGenWorkflow {
                     .addEdge("image_collector", "prompt_enhancer")
                     .addEdge("prompt_enhancer", "router")
                     .addEdge("router", "code_generator")
-                    .addEdge("code_generator", "code_quality_check")
-                    .addConditionalEdges("code_quality_check",
-                            edge_async(this::routeAfterQualityCheck),
+                    // 跳过代码审查阶段，代码生成后直接进入构建或结束
+                    .addConditionalEdges("code_generator",
+                            edge_async(this::routeBuildOrSkip),
                             Map.of(
                                     "build", "project_builder",
-                                    "skip_build", END,
-                                    "fail", "code_generator"
+                                    "skip_build", END
                             ))
+//                    .addEdge("code_generator", "code_quality_check")
+//                    .addConditionalEdges("code_quality_check",
+//                            edge_async(this::routeAfterQualityCheck),
+//                            Map.of(
+//                                    "build", "project_builder",
+//                                    "skip_build", END,
+//                                    "fail", "code_generator"
+//                            ))
                     .addEdge("project_builder", END)
                     .compile();
         } catch (GraphStateException e) {

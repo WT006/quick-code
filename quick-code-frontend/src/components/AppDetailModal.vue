@@ -23,11 +23,11 @@
       <!-- 操作栏（仅本人或管理员可见） -->
       <div v-if="showActions" class="app-actions">
         <a-space>
-          <a-button type="primary" @click="handleEdit">
+          <a-button type="primary" @click="handleRename">
             <template #icon>
               <EditOutlined />
             </template>
-            修改
+            重命名
           </a-button>
           <a-popconfirm
             title="确定要删除这个应用吗？"
@@ -63,7 +63,7 @@ interface Props {
 
 interface Emits {
   (e: 'update:open', value: boolean): void
-  (e: 'edit'): void
+  (e: 'rename'): void
   (e: 'delete'): void
 }
 
@@ -78,8 +78,8 @@ const visible = computed({
   set: (value) => emit('update:open', value),
 })
 
-const handleEdit = () => {
-  emit('edit')
+const handleRename = () => {
+  emit('rename')
 }
 
 const handleDelete = () => {
